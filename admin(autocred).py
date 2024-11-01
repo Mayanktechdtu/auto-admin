@@ -1,57 +1,36 @@
 import streamlit as st
 from datetime import datetime
-import sqlite3
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore
 
-# Connect to the SQLite database (creates the file if it doesn’t exist)
-conn = sqlite3.connect('clients_new.db')
-cursor = conn.cursor()
+# Initialize Firebase Admin for Firestore
+if not firebase_admin._apps:
+    cred = credentials.Certificate(json.loads(st.secrets["service_account"]))
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-# Create the clients table if it doesn’t exist, with a login_status column defaulting to 0
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS clients (
-        username TEXT PRIMARY KEY,
-        password TEXT,
-        expiry_date TEXT,
-        permissions TEXT,
-        email TEXT UNIQUE,
-        login_status INTEGER DEFAULT 0
-    )
-''')
-conn.commit()
-
-# Add the login_status column if it doesn’t exist and ensure default is 0
-try:
-    cursor.execute('ALTER TABLE clients ADD COLUMN login_status INTEGER DEFAULT 0')
-    conn.commit()
-except sqlite3.OperationalError:
-    # Ignore the error if the column already exists
-    pass
-
-# Function to add a client with email, expiry date, and permissions only
+# Function to add a client
 def add_client(email, expiry_date, permissions):
-    # Generate username from email prefix
     username = email.split('@')[0]
-    # Insert the client data with an empty password and inactive login status
-    cursor.execute('''
-        INSERT OR IGNORE INTO clients (username, password, expiry_date, permissions, email, login_status)
-        VALUES (?, ?, ?, ?, ?, 0)
-    ''', (username, '', expiry_date, ','.join(permissions), email))
-    conn.commit()
-
-# Function to update login status (active/inactive)
-def update_login_status(username, status):
-    cursor.execute('UPDATE clients SET login_status = ? WHERE username = ?', (status, username))
-    conn.commit()
+    client_data = {
+        "username": username,
+        "expiry_date": expiry_date,
+        "permissions": permissions,
+        "email": email,
+        "login_status": False
+    }
+    db.collection("clients").document(username).set(client_data)
 
 # Admin Dashboard Interface
 def admin_dashboard():
     st.title("Admin Dashboard")
-    st.write("Add approved emails with permissions and expiry dates for client access.")
+    st.write("Add clients with permissions and expiry dates.")
 
-    # Section to add a new client's email, permissions, and expiry date
-    email = st.text_input("Enter client's email for account creation approval:")
-    expiry_date = st.date_input("Set expiry date for the client", value=datetime(2024, 12, 31))
-    dashboards = st.multiselect("Dashboards to provide access to:", ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'])
+    # Form for adding clients
+    email = st.text_input("Enter client's email:")
+    expiry_date = st.date_input("Set expiry date", value=datetime(2024, 12, 31))
+    dashboards = st.multiselect("Dashboards to provide access to:", ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4'])
 
     if st.button("Add Client"):
         if email and dashboards:
@@ -61,24 +40,13 @@ def admin_dashboard():
             st.error("Please provide an email and select at least one dashboard.")
 
     st.write("---")
-
-    # Display all clients with their email, permissions, and expiry dates
-    cursor.execute('SELECT username, email, expiry_date, permissions, login_status FROM clients')
-    clients = cursor.fetchall()
+    # Display clients
+    clients = db.collection("clients").stream()
     st.write("### Approved Clients:")
-    if clients:
-        for client in clients:
-            login_status = "Logged In" if client[4] == 1 else "Logged Out"
-            st.write(f"**Username:** {client[0]} | **Email:** {client[1]} | **Expiry Date:** {client[2]} | **Dashboards Access:** {client[3]} | **Status:** {login_status}")
-            
-            # Add a button to reset the login status for each client
-            if login_status == "Logged In":
-                if st.button(f"Reset Login Status for {client[0]}"):
-                    update_login_status(client[0], 0)
-                    st.success(f"Login status for {client[0]} has been reset.")
-    else:
-        st.write("No clients added yet.")
+    for client in clients:
+        client_data = client.to_dict()
+        login_status = "Logged In" if client_data['login_status'] else "Logged Out"
+        st.write(f"**Username:** {client_data['username']} | **Email:** {client_data['email']} | **Expiry Date:** {client_data['expiry_date']} | **Permissions:** {client_data['permissions']} | **Status:** {login_status}")
 
-# Run the admin dashboard
 if __name__ == "__main__":
     admin_dashboard()
