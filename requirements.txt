@@ -1,0 +1,10 @@
+setuptools
+streamlit
+yfinance
+pandas
+numpy
+matplotlib
+plotly
+statsmodels
+seaborn
+pandas_datareader
