@@ -1,4 +1,8 @@
 streamlit
 firebase-admin
 pyrebase4
-setuptools
+python_jwt
+gcloud
+sseclient
+requests
+datetime
