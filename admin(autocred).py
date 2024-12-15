@@ -37,6 +37,7 @@ def add_client(email, expiry_date, permissions):
 # Function to update login status (active/inactive)
 def update_login_status(username, status):
     db_firestore.collection('clients').document(username).update({'login_status': status})
+    st.success(f"Login status for {username} has been reset.")
 
 # Admin Dashboard Interface
 def admin_dashboard():
@@ -62,14 +63,16 @@ def admin_dashboard():
     for client in clients_ref:
         client_data = client.to_dict()
         login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
-        st.write(f"**Username:** {client_data['username']} | **Email:** {client_data['email']} | **Expiry Date:** {client_data['expiry_date']} | **Dashboards Access:** {', '.join(client_data['permissions'])} | **Status:** {login_status}")
-        
-        # Add a button to reset the login status for each client
-        if login_status == "Logged In":
-            if st.button(f"Reset Login Status for {client_data['username']}"):
-                update_login_status(client_data['username'], 0)
-                st.success(f"Login status for {client_data['username']} has been reset.")
-                st.experimental_rerun()  # Refresh to show updated status
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"**Username:** {client_data['username']} | **Email:** {client_data['email']} | "
+                     f"**Expiry Date:** {client_data['expiry_date']} | "
+                     f"**Dashboards Access:** {', '.join(client_data['permissions'])} | **Status:** {login_status}")
+        with col2:
+            if login_status == "Logged In":
+                if st.button(f"Reset {client_data['username']}", key=client_data['username']):
+                    update_login_status(client_data['username'], 0)
+                    st.experimental_rerun()  # Refresh only when the button is clicked
 
 # Run the admin dashboard
 if __name__ == "__main__":
