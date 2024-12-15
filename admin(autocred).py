@@ -72,50 +72,65 @@ def admin_dashboard():
 
     st.write("---")
 
-    # Display all clients with their email, permissions, and expiry dates
+    # Search functionality
+    st.subheader("Search Clients")
+    search_query = st.text_input("Enter username to search:")
+    
+    # Fetch clients from Firestore
     clients_ref = db_firestore.collection('clients').stream()
-    st.write("### Approved Clients:")
+    clients_data = [client.to_dict() for client in clients_ref]
 
-    # Create headers for the table
-    col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
-    with col1:
-        st.markdown("**Username**")
-    with col2:
-        st.markdown("**Email**")
-    with col3:
-        st.markdown("**Expiry Date**")
-    with col4:
-        st.markdown("**Dashboards**")
-    with col5:
-        st.markdown("**Status**")
-    with col6:
-        st.markdown("**Action**")
+    # Filter clients based on search query
+    if search_query:
+        filtered_clients = [client for client in clients_data if search_query.lower() in client['username'].lower()]
+        if not filtered_clients:
+            st.warning("No clients found with the given username.")
+    else:
+        filtered_clients = clients_data
 
-    # Display each client's data in a row
-    for client in clients_ref:
-        client_data = client.to_dict()
-        login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
-        status_color = "green" if login_status == "Logged In" else "red"
+    # Display filtered clients
+    if filtered_clients:
+        st.write("### Approved Clients:")
 
-        # Ensure text comes in a single line by avoiding line breaks
+        # Create headers for the table
         col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
         with col1:
-            st.write(client_data['username'])
+            st.markdown("**Username**")
         with col2:
-            st.write(client_data['email'])
+            st.markdown("**Email**")
         with col3:
-            st.write(client_data['expiry_date'])
+            st.markdown("**Expiry Date**")
         with col4:
-            st.write(", ".join(client_data['permissions']))
+            st.markdown("**Dashboards**")
         with col5:
-            st.markdown(f"{status_dot(status_color)} {login_status}", unsafe_allow_html=True)
+            st.markdown("**Status**")
         with col6:
-            if login_status == "Logged In":
-                if st.button("Reset", key=f"reset_{client_data['username']}"):
-                    update_login_status(client_data['username'], 0)
-                    st.experimental_rerun()
-            else:
-                st.write("-")
+            st.markdown("**Action**")
+
+        # Display each client's data in a row
+        for client_data in filtered_clients:
+            login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
+            status_color = "green" if login_status == "Logged In" else "red"
+
+            # Ensure text comes in a single line by avoiding line breaks
+            col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+            with col1:
+                st.write(client_data['username'])
+            with col2:
+                st.write(client_data['email'])
+            with col3:
+                st.write(client_data['expiry_date'])
+            with col4:
+                st.write(", ".join(client_data['permissions']))
+            with col5:
+                st.markdown(f"{status_dot(status_color)} {login_status}", unsafe_allow_html=True)
+            with col6:
+                if login_status == "Logged In":
+                    if st.button("Reset", key=f"reset_{client_data['username']}"):
+                        update_login_status(client_data['username'], 0)
+                        st.experimental_rerun()
+                else:
+                    st.write("-")
 
 # Run the admin dashboard
 if __name__ == "__main__":
