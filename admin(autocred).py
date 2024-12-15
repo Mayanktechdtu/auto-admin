@@ -25,7 +25,7 @@ def add_client(email, expiry_date, permissions):
     username = email.split('@')[0]
     client_data = {
         'username': username,
-        'password': 'default123',  # Default password for new users
+        'password': '',  # Blank password initially
         'expiry_date': expiry_date,
         'permissions': permissions,
         'email': email,
@@ -39,12 +39,6 @@ def add_client(email, expiry_date, permissions):
 def update_login_status(username, status):
     db_firestore.collection('clients').document(username).update({'login_status': status})
     st.success(f"Login status for {username} has been reset.")
-
-# Function to reset the password
-def reset_password(username):
-    new_password = "default123"  # Example new password (should be dynamic in production)
-    db_firestore.collection('clients').document(username).update({'password': new_password})
-    st.success(f"Password for {username} has been reset to '{new_password}'.")
 
 # Function to create a colored dot for status
 def status_dot(color):
@@ -109,11 +103,11 @@ def admin_dashboard():
         st.write("### Approved Clients:")
 
         # Create headers for the table
-        col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 2, 2, 2, 1, 1, 1])
+        col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
         with col1:
             st.markdown("**Username**")
         with col2:
-            st.markdown("**Email (Login ID)**")
+            st.markdown("**Email**")
         with col3:
             st.markdown("**Expiry Date**")
         with col4:
@@ -121,9 +115,7 @@ def admin_dashboard():
         with col5:
             st.markdown("**Status**")
         with col6:
-            st.markdown("**Actions**")
-        with col7:
-            st.markdown("**Reset Password**")
+            st.markdown("**Action**")
 
         # Display each client's data in a row
         for client_data in filtered_clients:
@@ -131,7 +123,7 @@ def admin_dashboard():
             status_color = "green" if login_status == "Logged In" else "red"
 
             # Ensure text comes in a single line by avoiding line breaks
-            col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 2, 2, 2, 1, 1, 1])
+            col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
             with col1:
                 st.write(client_data['username'])
             with col2:
@@ -144,15 +136,11 @@ def admin_dashboard():
                 st.markdown(f"{status_dot(status_color)} {login_status}", unsafe_allow_html=True)
             with col6:
                 if login_status == "Logged In":
-                    if st.button("Reset Login", key=f"reset_login_{client_data['username']}"):
+                    if st.button("Reset", key=f"reset_{client_data['username']}"):
                         update_login_status(client_data['username'], 0)
                         st.experimental_rerun()
                 else:
                     st.write("-")
-            with col7:
-                if st.button("Reset Password", key=f"reset_password_{client_data['username']}"):
-                    reset_password(client_data['username'])
-
     else:
         st.warning("No clients found.")
 
