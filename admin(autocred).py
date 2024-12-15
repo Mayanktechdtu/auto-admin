@@ -77,6 +77,11 @@ def admin_dashboard():
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
 
+    # Handle missing `created_at` by assigning a default value
+    for client in clients_data:
+        if 'created_at' not in client:
+            client['created_at'] = '2000-01-01 00:00:00'  # Assign a very old default date
+
     # Sort clients by created_at (latest first) and username (alphabetical order for ties)
     clients_data.sort(key=lambda x: (datetime.strptime(x['created_at'], '%Y-%m-%d %H:%M:%S'), x['username']), reverse=True)
 
