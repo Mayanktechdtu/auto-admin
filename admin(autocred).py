@@ -36,12 +36,8 @@ def add_client(email, expiry_date, permissions):
 
 # Function to update login status (active/inactive)
 def update_login_status(username, status):
-    try:
-        db_firestore.collection('clients').document(username).update({'login_status': status})
-        return True  # Update was successful
-    except Exception as e:
-        st.error(f"Failed to update login status for {username}: {e}")
-        return False
+    db_firestore.collection('clients').document(username).update({'login_status': status})
+    st.success(f"Login status for {username} has been reset.")
 
 # Admin Dashboard Interface
 def admin_dashboard():
@@ -75,8 +71,8 @@ def admin_dashboard():
         with col2:
             if login_status == "Logged In":
                 if st.button(f"Reset {client_data['username']}", key=client_data['username']):
-                    if update_login_status(client_data['username'], 0):  # Ensure update completes successfully
-                        st.experimental_rerun()  # Refresh only if successful
+                    update_login_status(client_data['username'], 0)
+                    st.experimental_rerun()  # Refresh only when the button is clicked
 
 # Run the admin dashboard
 if __name__ == "__main__":
