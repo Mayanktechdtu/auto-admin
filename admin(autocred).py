@@ -72,68 +72,28 @@ def admin_dashboard():
     clients_ref = db_firestore.collection('clients').stream()
     st.write("### Approved Clients:")
     
-    # Table Headers
-    st.markdown(
-        """
-        <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            text-align: left;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-        .status-btn {
-            margin: 0 auto;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-    # Prepare a table-like layout
-    table_html = """
-    <table>
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Expiry Date</th>
-                <th>Dashboards</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-
+    # Table-like display for client data with inline Reset button
     for client in clients_ref:
         client_data = client.to_dict()
         login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
-
-        # Add row to the table
-        table_html += f"""
-        <tr>
-            <td>{client_data['username']}</td>
-            <td>{client_data['email']}</td>
-            <td>{client_data['expiry_date']}</td>
-            <td>{', '.join(client_data['permissions'])}</td>
-            <td>
-        """
-        # Embed reset button directly for "Logged In" users
-        if login_status == "Logged In":
-            if st.button(f"Reset {client_data['username']}", key=client_data['username']):
-                update_login_status(client_data['username'], 0)
-                st.experimental_rerun()  # Refresh only when the button is clicked
-            table_html += "<div class='status-btn'>Reset</div>"
-        else:
-            table_html += "Logged Out"
-        table_html += "</td></tr>"
-
-    table_html += "</tbody></table>"
-    st.markdown(table_html, unsafe_allow_html=True)
+        
+        # Create a row for each client
+        cols = st.columns([2, 3, 2, 2, 1])
+        with cols[0]:
+            st.write(f"**Username:** {client_data['username']}")
+        with cols[1]:
+            st.write(f"**Email:** {client_data['email']}")
+        with cols[2]:
+            st.write(f"**Expiry Date:** {client_data['expiry_date']}")
+        with cols[3]:
+            st.write(f"**Dashboards:** {', '.join(client_data['permissions'])}")
+        with cols[4]:
+            if login_status == "Logged In":
+                if st.button("Reset", key=f"reset_{client_data['username']}"):
+                    update_login_status(client_data['username'], 0)
+                    st.experimental_rerun()
+            else:
+                st.write(login_status)
 
 # Run the admin dashboard
 if __name__ == "__main__":
