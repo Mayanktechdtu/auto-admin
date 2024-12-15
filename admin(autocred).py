@@ -74,7 +74,7 @@ def admin_dashboard():
     if st.button("Add Client"):
         if email and dashboards:
             add_client(email, expiry_date.strftime('%Y-%m-%d'), dashboards)
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Please provide all required details.")
 
@@ -120,7 +120,7 @@ def admin_dashboard():
             # Reset login status
             if st.button("Reset Login Status", key=f"reset_{client_data['username']}"):
                 update_login_status(client_data['username'], 0)
-                st.experimental_rerun()
+                st.rerun()
 
             # Edit Client Details Form
             if f"edit_{client_data['username']}" not in st.session_state:
@@ -139,7 +139,7 @@ def admin_dashboard():
                                                          default=client_data['permissions'])
                     if st.form_submit_button("Save Changes"):
                         update_client(client_data['username'], updated_email, updated_expiry.strftime('%Y-%m-%d'), updated_permissions)
-                        st.experimental_rerun()
+                        st.rerun()
 
 # Run the admin dashboard
 if __name__ == "__main__":
