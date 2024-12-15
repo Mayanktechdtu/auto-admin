@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -20,7 +20,7 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(firebase_cred)
 db_firestore = firestore.client()
 
-# Function to add a client with email, expiry date, and permissions only
+# Function to add a client with email, expiry date, and permissions
 def add_client(email, expiry_date, permissions):
     username = email.split('@')[0]
     client_data = {
@@ -32,7 +32,7 @@ def add_client(email, expiry_date, permissions):
         'login_status': 0  # Default to logged out
     }
     db_firestore.collection('clients').document(username).set(client_data)
-    st.success(f"Client with email '{email}' added successfully!")
+    st.success(f"Client with email '{email}' added successfully! Expiry date: {expiry_date}")
 
 # Function to update login status (active/inactive)
 def update_login_status(username, status):
@@ -46,8 +46,19 @@ def admin_dashboard():
 
     # Section to add a new client's email, permissions, and expiry date
     email = st.text_input("Enter client's email for account creation approval:")
-    expiry_date = st.date_input("Set expiry date for the client", value=datetime(2024, 12, 31))
+    expiry_option = st.selectbox("Select expiry duration:", ['1 Month', '3 Months', '6 Months'])
     dashboards = st.multiselect("Dashboards to provide access to:", ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'])
+
+    # Calculate expiry date based on the selected option
+    if expiry_option == '1 Month':
+        expiry_date = (datetime.now() + timedelta(days=30)).date()
+    elif expiry_option == '3 Months':
+        expiry_date = (datetime.now() + timedelta(days=90)).date()
+    elif expiry_option == '6 Months':
+        expiry_date = (datetime.now() + timedelta(days=180)).date()
+
+    # Display calculated expiry date
+    st.write(f"Calculated Expiry Date: **{expiry_date}**")
 
     if st.button("Add Client"):
         if email and dashboards:
