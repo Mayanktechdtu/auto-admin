@@ -49,6 +49,11 @@ def update_login_status(username, status):
     db_firestore.collection('clients').document(username).update({'login_status': status})
     st.success(f"Login status for '{username}' has been reset.")
 
+# Function to remove a client
+def remove_client(username):
+    db_firestore.collection('clients').document(username).delete()
+    st.success(f"Client '{username}' has been removed successfully.")
+
 # Function to display status dot
 def status_dot(color):
     return f"<span style='height: 10px; width: 10px; background-color: {color}; border-radius: 50%; display: inline-block;'></span>"
@@ -140,6 +145,11 @@ def admin_dashboard():
                     if st.form_submit_button("Save Changes"):
                         update_client(client_data['username'], updated_email, updated_expiry.strftime('%Y-%m-%d'), updated_permissions)
                         st.rerun()
+
+            # Remove Client
+            if st.button("Remove Client", key=f"remove_{client_data['username']}"):
+                remove_client(client_data['username'])
+                st.rerun()
 
 # Run the admin dashboard
 if __name__ == "__main__":
