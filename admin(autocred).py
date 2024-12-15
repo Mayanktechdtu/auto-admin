@@ -39,11 +39,9 @@ def update_login_status(username, status):
     db_firestore.collection('clients').document(username).update({'login_status': status})
     st.success(f"Login status for {username} has been reset.")
 
-# Helper function to render status dot
-def render_status_dot(is_logged_in):
-    color = "green" if is_logged_in else "red"
-    status = "Logged In" if is_logged_in else "Logged Out"
-    return f"<span style='color:{color}; font-size:18px;'>&#9679;</span> {status}"
+# Function to create a colored dot for status
+def status_dot(color):
+    return f"<span style='height: 10px; width: 10px; background-color: {color}; border-radius: 50%; display: inline-block;'></span>"
 
 # Admin Dashboard Interface
 def admin_dashboard():
@@ -78,72 +76,46 @@ def admin_dashboard():
     clients_ref = db_firestore.collection('clients').stream()
     st.write("### Approved Clients:")
 
-    # Create the table headers
-    st.markdown(
-        """
-        <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            text-align: left;
-            padding: 8px;
-        }
-        th {
-            background-color: #4CAF50;
-            color: white;
-        }
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    table_html = """
-    <table>
-        <tr>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Expiry Date</th>
-            <th>Dashboards</th>
-            <th>Status</th>
-            <th>Action</th>
-        </tr>
-    """
+    # Create headers for the table
+    col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+    with col1:
+        st.markdown("**Username**")
+    with col2:
+        st.markdown("**Email**")
+    with col3:
+        st.markdown("**Expiry Date**")
+    with col4:
+        st.markdown("**Dashboards**")
+    with col5:
+        st.markdown("**Status**")
+    with col6:
+        st.markdown("**Action**")
 
+    # Display each client's data in a row
     for client in clients_ref:
         client_data = client.to_dict()
-        username = client_data['username']
-        email = client_data['email']
-        expiry_date = client_data['expiry_date']
-        dashboards = ", ".join(client_data['permissions'])
-        is_logged_in = client_data['login_status'] == 1
+        login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
+        status_color = "green" if login_status == "Logged In" else "red"
 
-        # Add row data
-        table_html += f"""
-        <tr>
-            <td>{username}</td>
-            <td>{email}</td>
-            <td>{expiry_date}</td>
-            <td>{dashboards}</td>
-            <td>{render_status_dot(is_logged_in)}</td>
-            <td>
-        """
-        if is_logged_in:
-            if st.button(f"Reset {username}", key=f"reset_{username}"):
-                update_login_status(username, 0)
-                st.experimental_rerun()
-        else:
-            table_html += "-"
-
-        table_html += "</td></tr>"
-
-    table_html += "</table>"
-
-    # Render the table
-    st.markdown(table_html, unsafe_allow_html=True)
+        # Ensure text comes in a single line by avoiding line breaks
+        col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+        with col1:
+            st.write(client_data['username'])
+        with col2:
+            st.write(client_data['email'])
+        with col3:
+            st.write(client_data['expiry_date'])
+        with col4:
+            st.write(", ".join(client_data['permissions']))
+        with col5:
+            st.markdown(f"{status_dot(status_color)} {login_status}", unsafe_allow_html=True)
+        with col6:
+            if login_status == "Logged In":
+                if st.button("Reset", key=f"reset_{client_data['username']}"):
+                    update_login_status(client_data['username'], 0)
+                    st.experimental_rerun()
+            else:
+                st.write("-")
 
 # Run the admin dashboard
 if __name__ == "__main__":
