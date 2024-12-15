@@ -35,6 +35,15 @@ def add_client(email, expiry_date, permissions):
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client with email '{email}' added successfully! Expiry date: {expiry_date}")
 
+# Function to update client details
+def update_client(username, updated_email, updated_expiry, updated_permissions):
+    db_firestore.collection('clients').document(username).update({
+        'email': updated_email,
+        'expiry_date': updated_expiry,
+        'permissions': updated_permissions
+    })
+    st.success(f"Client '{username}' details updated successfully!")
+
 # Function to update login status (active/inactive)
 def update_login_status(username, status):
     db_firestore.collection('clients').document(username).update({'login_status': status})
@@ -107,7 +116,9 @@ def admin_dashboard():
         st.write("### Approved Clients:")
 
         # Create headers for the table
-        col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+        col0, col1, col2, col3, col4, col5, col6, col7 = st.columns([0.5, 1, 2, 2, 2, 1, 1, 1])
+        with col0:
+            st.markdown("**S.No**")
         with col1:
             st.markdown("**Username**")
         with col2:
@@ -120,14 +131,18 @@ def admin_dashboard():
             st.markdown("**Status**")
         with col6:
             st.markdown("**Action**")
+        with col7:
+            st.markdown("**Edit**")
 
         # Display each client's data in a row
-        for client_data in filtered_clients:
+        for idx, client_data in enumerate(filtered_clients, start=1):
             login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
             status_color = "green" if login_status == "Logged In" else "red"
 
             # Ensure text comes in a single line by avoiding line breaks
-            col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+            col0, col1, col2, col3, col4, col5, col6, col7 = st.columns([0.5, 1, 2, 2, 2, 1, 1, 1])
+            with col0:
+                st.write(idx)
             with col1:
                 st.write(client_data['username'])
             with col2:
@@ -145,6 +160,15 @@ def admin_dashboard():
                         st.experimental_rerun()
                 else:
                     st.write("-")
+            with col7:
+                if st.button("Edit", key=f"edit_{client_data['username']}"):
+                    with st.form(key=f"edit_form_{client_data['username']}"):
+                        updated_email = st.text_input("Update Email", value=client_data['email'])
+                        updated_expiry = st.date_input("Update Expiry Date", value=datetime.strptime(client_data['expiry_date'], "%Y-%m-%d").date())
+                        updated_permissions = st.multiselect("Update Dashboards", ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'], default=client_data['permissions'])
+                        if st.form_submit_button("Save Changes"):
+                            update_client(client_data['username'], updated_email, updated_expiry.strftime('%Y-%m-%d'), updated_permissions)
+                            st.experimental_rerun()
     else:
         st.warning("No clients found.")
 
