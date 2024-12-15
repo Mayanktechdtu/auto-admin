@@ -95,8 +95,16 @@ def admin_dashboard():
     # Display total clients
     st.subheader(f"Total Clients: {len(clients_data)}")
 
-    # Display client logs with expandable rows
-    for idx, client_data in enumerate(clients_data, start=1):
+    # Search functionality with autosuggestion
+    st.subheader("Search Clients by Email")
+    email_list = [client['email'] for client in clients_data]
+    selected_email = st.selectbox("Select Client Email to Search:", [""] + email_list)
+
+    # Filter clients based on search query
+    filtered_clients = clients_data if not selected_email else [c for c in clients_data if c['email'] == selected_email]
+
+    # Display client logs
+    for idx, client_data in enumerate(filtered_clients, start=1):
         with st.expander(f"**{idx}. {client_data['username']}** - {client_data['email']}"):
             st.write("### Client Details")
             col1, col2, col3 = st.columns(3)
@@ -109,7 +117,7 @@ def admin_dashboard():
                 status_color = "green" if login_status == "Logged In" else "red"
                 st.markdown(f"**Status:** {status_dot(status_color)} {login_status}", unsafe_allow_html=True)
 
-            # Reset login button
+            # Reset login status
             if st.button("Reset Login Status", key=f"reset_{client_data['username']}"):
                 update_login_status(client_data['username'], 0)
                 st.experimental_rerun()
