@@ -72,19 +72,20 @@ def admin_dashboard():
 
     st.write("---")
 
-    # Search functionality
-    st.subheader("Search Clients")
-    search_query = st.text_input("Enter username to search:")
-    
     # Fetch clients from Firestore
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
 
-    # Filter clients based on search query
-    if search_query:
-        filtered_clients = [client for client in clients_data if search_query.lower() in client['username'].lower()]
-        if not filtered_clients:
-            st.warning("No clients found with the given username.")
+    # Extract email list for autosuggestion
+    email_list = [client['email'] for client in clients_data]
+
+    # Search functionality with autosuggestion
+    st.subheader("Search Clients by Email")
+    selected_email = st.selectbox("Start typing to search by email:", [""] + email_list)
+
+    # Filter clients based on selected email
+    if selected_email:
+        filtered_clients = [client for client in clients_data if client['email'] == selected_email]
     else:
         filtered_clients = clients_data
 
@@ -131,6 +132,8 @@ def admin_dashboard():
                         st.experimental_rerun()
                 else:
                     st.write("-")
+    else:
+        st.warning("No clients found.")
 
 # Run the admin dashboard
 if __name__ == "__main__":
