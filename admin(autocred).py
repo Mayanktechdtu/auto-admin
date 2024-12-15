@@ -75,65 +75,86 @@ def admin_dashboard():
     for client in clients_ref:
         client_data = client.to_dict()
         login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
+        reset_action = (
+            f"<button onclick=\"fetch('/{client_data['username']}')\">Reset</button>"
+            if login_status == "Logged In" else "No Action"
+        )
         client_logs.append({
             "Username": client_data['username'],
             "Email": client_data['email'],
             "Expiry Date": client_data['expiry_date'],
             "Dashboards": ", ".join(client_data['permissions']),
-            "Status": login_status
+            "Status": login_status,
+            "Action": reset_action
         })
 
-    # Use a slider for navigation if there are too many clients
-    total_clients = len(client_logs)
-    if total_clients > 0:
-        slider_value = st.slider("Navigate through clients", 1, total_clients, 1)
-        selected_client = client_logs[slider_value - 1]
-
-        # Display selected client in a single row table format
-        st.write("### Client Details")
-        st.markdown("""
+    # Scrollable table display
+    if client_logs:
+        st.write("### Approved Clients")
+        table_css = """
         <style>
-        .single-row-table th, .single-row-table td {
+        .scrollable-table {
+            display: block;
+            width: 100%;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        .scrollable-table table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .scrollable-table th, .scrollable-table td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
-            white-space: nowrap;
         }
-        .single-row-table th {
+        .scrollable-table th {
             background-color: #f2f2f2;
+            font-weight: bold;
         }
         </style>
-        """, unsafe_allow_html=True)
-        
-        table_html = f"""
-        <table class="single-row-table">
-            <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Expiry Date</th>
-                <th>Dashboards</th>
-                <th>Status</th>
-                <th>Action</th>
-            </tr>
-            <tr>
-                <td>{selected_client['Username']}</td>
-                <td>{selected_client['Email']}</td>
-                <td>{selected_client['Expiry Date']}</td>
-                <td>{selected_client['Dashboards']}</td>
-                <td>{selected_client['Status']}</td>
-                <td>
-                    {"<button>Reset</button>" if selected_client['Status'] == "Logged In" else "No Action"}
-                </td>
-            </tr>
-        </table>
         """
-        st.markdown(table_html, unsafe_allow_html=True)
+        st.markdown(table_css, unsafe_allow_html=True)
 
-        # Reset button logic
-        if selected_client['Status'] == "Logged In":
-            if st.button(f"Reset Login Status for {selected_client['Username']}", key=selected_client['Username']):
-                update_login_status(selected_client['Username'], 0)
-                st.experimental_rerun()
+        table_html = """
+        <div class="scrollable-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Expiry Date</th>
+                        <th>Dashboards</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+
+        for client in client_logs:
+            action_button = (
+                f'<button onClick="alert(\'Reset {client["Username"]} status!\')">Reset</button>'
+                if client["Status"] == "Logged In" else "No Action"
+            )
+            table_html += f"""
+                <tr>
+                    <td>{client['Username']}</td>
+                    <td>{client['Email']}</td>
+                    <td>{client['Expiry Date']}</td>
+                    <td>{client['Dashboards']}</td>
+                    <td>{client['Status']}</td>
+                    <td>{action_button}</td>
+                </tr>
+            """
+
+        table_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+
+        st.markdown(table_html, unsafe_allow_html=True)
     else:
         st.write("No clients available.")
 
