@@ -161,7 +161,13 @@ def admin_dashboard():
                 else:
                     st.write("-")
             with col7:
-                if st.button("Edit", key=f"edit_{client_data['username']}"):
+                if f"edit_{client_data['username']}" not in st.session_state:
+                    st.session_state[f"edit_{client_data['username']}"] = False
+                if st.button("Edit", key=f"edit_btn_{client_data['username']}"):
+                    st.session_state[f"edit_{client_data['username']}"] = not st.session_state[f"edit_{client_data['username']}"]
+
+                if st.session_state[f"edit_{client_data['username']}"]:
+                    st.write("**Edit Client Details**")
                     with st.form(key=f"edit_form_{client_data['username']}"):
                         updated_email = st.text_input("Update Email", value=client_data['email'])
                         updated_expiry = st.date_input("Update Expiry Date", value=datetime.strptime(client_data['expiry_date'], "%Y-%m-%d").date())
