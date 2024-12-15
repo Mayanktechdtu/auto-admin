@@ -29,7 +29,8 @@ def add_client(email, expiry_date, permissions):
         'expiry_date': expiry_date,
         'permissions': permissions,
         'email': email,
-        'login_status': 0  # Default to logged out
+        'login_status': 0,  # Default to logged out
+        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Add timestamp
     }
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client with email '{email}' added successfully! Expiry date: {expiry_date}")
@@ -75,6 +76,9 @@ def admin_dashboard():
     # Fetch clients from Firestore
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
+
+    # Sort clients by created_at (latest first) and username (alphabetical order for ties)
+    clients_data.sort(key=lambda x: (datetime.strptime(x['created_at'], '%Y-%m-%d %H:%M:%S'), x['username']), reverse=True)
 
     # Extract email list for autosuggestion
     email_list = [client['email'] for client in clients_data]
