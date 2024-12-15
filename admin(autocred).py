@@ -71,19 +71,32 @@ def admin_dashboard():
     # Display all clients with their email, permissions, and expiry dates
     clients_ref = db_firestore.collection('clients').stream()
     st.write("### Approved Clients:")
+    client_logs = []
+
     for client in clients_ref:
         client_data = client.to_dict()
         login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.write(f"**Username:** {client_data['username']} | **Email:** {client_data['email']} | "
-                     f"**Expiry Date:** {client_data['expiry_date']} | "
-                     f"**Dashboards Access:** {', '.join(client_data['permissions'])} | **Status:** {login_status}")
-        with col2:
-            if login_status == "Logged In":
-                if st.button(f"Reset {client_data['username']}", key=client_data['username']):
-                    update_login_status(client_data['username'], 0)
-                    st.experimental_rerun()  # Refresh only when the button is clicked
+        client_logs.append({
+            "Username": client_data['username'],
+            "Email": client_data['email'],
+            "Expiry Date": client_data['expiry_date'],
+            "Dashboards": ", ".join(client_data['permissions']),
+            "Status": login_status
+        })
+
+    # Display logs in tabular format
+    if client_logs:
+        st.table(client_logs)
+    else:
+        st.write("No clients have been added yet.")
+
+    # Section for resetting login status
+    for client in client_logs:
+        username = client["Username"]
+        if client["Status"] == "Logged In":
+            if st.button(f"Reset Login Status for {username}", key=username):
+                update_login_status(username, 0)
+                st.experimental_rerun()  # Refresh only when the button is clicked
 
 # Run the admin dashboard
 if __name__ == "__main__":
