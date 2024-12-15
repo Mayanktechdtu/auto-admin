@@ -85,6 +85,10 @@ def admin_dashboard():
     # Sort clients by created_at (latest first) and username (alphabetical order for ties)
     clients_data.sort(key=lambda x: (datetime.strptime(x['created_at'], '%Y-%m-%d %H:%M:%S'), x['username']), reverse=True)
 
+    # Display total number of clients
+    total_clients = len(clients_data)
+    st.write(f"### Total Clients: {total_clients}")
+
     # Extract email list for autosuggestion
     email_list = [client['email'] for client in clients_data]
 
