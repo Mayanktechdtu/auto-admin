@@ -68,64 +68,50 @@ def admin_dashboard():
 
     st.write("---")
 
-    # Display all clients in a table format
+    # Display all clients with their email, permissions, and expiry dates
     clients_ref = db_firestore.collection('clients').stream()
     st.write("### Approved Clients:")
-    
-    # Header row
-    st.markdown("""
-    <style>
-        .table-header, .table-row {
-            display: grid;
-            grid-template-columns: 15% 25% 20% 30% 10%;
-            text-align: left;
-            padding: 5px 0;
-            border-bottom: 1px solid #ccc;
-        }
-        .table-header {
-            font-weight: bold;
-        }
-        .table-row button {
-            margin: 0;
-            padding: 5px 10px;
-            font-size: 12px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Table Header
-    st.markdown(
-        '<div class="table-header">'
-        '<div>Username</div>'
-        '<div>Email</div>'
-        '<div>Expiry Date</div>'
-        '<div>Dashboards</div>'
-        '<div>Status/Action</div>'
-        '</div>',
-        unsafe_allow_html=True
-    )
-    
-    # Table Rows
+
+    # Create headers for the table
+    col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+    with col1:
+        st.markdown("**Username**")
+    with col2:
+        st.markdown("**Email**")
+    with col3:
+        st.markdown("**Expiry Date**")
+    with col4:
+        st.markdown("**Dashboards**")
+    with col5:
+        st.markdown("**Status**")
+    with col6:
+        st.markdown("**Action**")
+
+    # Display each client's data in a row
     for client in clients_ref:
         client_data = client.to_dict()
-        username = client_data['username']
-        email = client_data['email']
-        expiry_date = client_data['expiry_date']
-        dashboards = ', '.join(client_data['permissions'])
-        status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
-        
-        action_html = (
-            f'<button onclick="document.location.reload()">Reset</button>'
-            if status == "Logged In" else status
-        )
-        
-        # Row content
-        row_html = (
-            f'<div class="table-row">'
-            f'<div>{username}</div>'
-            f'<div>{email}</div>'
-            f'<div>{expiry_date}</div>'
-            f'<div>{dashboards}</div>'
-            f'<div>{button_html}</div>'
-            '</div>'
-     ]
+        login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
+
+        # Ensure text comes in a single line by avoiding line breaks
+        col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+        with col1:
+            st.write(client_data['username'])
+        with col2:
+            st.write(client_data['email'])
+        with col3:
+            st.write(client_data['expiry_date'])
+        with col4:
+            st.write(", ".join(client_data['permissions']))
+        with col5:
+            st.write(login_status)
+        with col6:
+            if login_status == "Logged In":
+                if st.button("Reset", key=f"reset_{client_data['username']}"):
+                    update_login_status(client_data['username'], 0)
+                    st.experimental_rerun()
+            else:
+                st.write("-")
+
+# Run the admin dashboard
+if __name__ == "__main__":
+    admin_dashboard()
