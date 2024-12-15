@@ -68,32 +68,74 @@ def admin_dashboard():
 
     st.write("---")
 
-    # Display all clients with their email, permissions, and expiry dates
+    # Fetch and display clients
     clients_ref = db_firestore.collection('clients').stream()
-    st.write("### Approved Clients:")
-    
-    # Table-like display for client data with inline Reset button
+    client_logs = []
+
     for client in clients_ref:
         client_data = client.to_dict()
         login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
+        client_logs.append({
+            "Username": client_data['username'],
+            "Email": client_data['email'],
+            "Expiry Date": client_data['expiry_date'],
+            "Dashboards": ", ".join(client_data['permissions']),
+            "Status": login_status
+        })
+
+    # Use a slider for navigation if there are too many clients
+    total_clients = len(client_logs)
+    if total_clients > 0:
+        slider_value = st.slider("Navigate through clients", 1, total_clients, 1)
+        selected_client = client_logs[slider_value - 1]
+
+        # Display selected client in a single row table format
+        st.write("### Client Details")
+        st.markdown("""
+        <style>
+        .single-row-table th, .single-row-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        .single-row-table th {
+            background-color: #f2f2f2;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
-        # Create a row for each client
-        cols = st.columns([2, 3, 2, 2, 1])
-        with cols[0]:
-            st.write(f"**Username:** {client_data['username']}")
-        with cols[1]:
-            st.write(f"**Email:** {client_data['email']}")
-        with cols[2]:
-            st.write(f"**Expiry Date:** {client_data['expiry_date']}")
-        with cols[3]:
-            st.write(f"**Dashboards:** {', '.join(client_data['permissions'])}")
-        with cols[4]:
-            if login_status == "Logged In":
-                if st.button("Reset", key=f"reset_{client_data['username']}"):
-                    update_login_status(client_data['username'], 0)
-                    st.experimental_rerun()
-            else:
-                st.write(login_status)
+        table_html = f"""
+        <table class="single-row-table">
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Expiry Date</th>
+                <th>Dashboards</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+            <tr>
+                <td>{selected_client['Username']}</td>
+                <td>{selected_client['Email']}</td>
+                <td>{selected_client['Expiry Date']}</td>
+                <td>{selected_client['Dashboards']}</td>
+                <td>{selected_client['Status']}</td>
+                <td>
+                    {"<button>Reset</button>" if selected_client['Status'] == "Logged In" else "No Action"}
+                </td>
+            </tr>
+        </table>
+        """
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        # Reset button logic
+        if selected_client['Status'] == "Logged In":
+            if st.button(f"Reset Login Status for {selected_client['Username']}", key=selected_client['Username']):
+                update_login_status(selected_client['Username'], 0)
+                st.experimental_rerun()
+    else:
+        st.write("No clients available.")
 
 # Run the admin dashboard
 if __name__ == "__main__":
