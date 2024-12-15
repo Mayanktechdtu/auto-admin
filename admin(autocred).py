@@ -68,95 +68,49 @@ def admin_dashboard():
 
     st.write("---")
 
-    # Fetch and display clients
+    # Display all clients with their email, permissions, and expiry dates
     clients_ref = db_firestore.collection('clients').stream()
-    client_logs = []
+    st.write("### Approved Clients:")
 
+    # Create headers for the table
+    col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+    with col1:
+        st.markdown("**Username**")
+    with col2:
+        st.markdown("**Email**")
+    with col3:
+        st.markdown("**Expiry Date**")
+    with col4:
+        st.markdown("**Dashboards**")
+    with col5:
+        st.markdown("**Status**")
+    with col6:
+        st.markdown("**Action**")
+
+    # Display each client's data in a row
     for client in clients_ref:
         client_data = client.to_dict()
         login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
-        reset_action = (
-            f"<button onclick=\"fetch('/{client_data['username']}')\">Reset</button>"
-            if login_status == "Logged In" else "No Action"
-        )
-        client_logs.append({
-            "Username": client_data['username'],
-            "Email": client_data['email'],
-            "Expiry Date": client_data['expiry_date'],
-            "Dashboards": ", ".join(client_data['permissions']),
-            "Status": login_status,
-            "Action": reset_action
-        })
 
-    # Scrollable table display
-    if client_logs:
-        st.write("### Approved Clients")
-        table_css = """
-        <style>
-        .scrollable-table {
-            display: block;
-            width: 100%;
-            overflow-x: auto;
-            white-space: nowrap;
-        }
-        .scrollable-table table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        .scrollable-table th, .scrollable-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .scrollable-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        </style>
-        """
-        st.markdown(table_css, unsafe_allow_html=True)
-
-        table_html = """
-        <div class="scrollable-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Email</th>
-                        <th>Expiry Date</th>
-                        <th>Dashboards</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-        """
-
-        for client in client_logs:
-            action_button = (
-                f'<button onClick="alert(\'Reset {client["Username"]} status!\')">Reset</button>'
-                if client["Status"] == "Logged In" else "No Action"
-            )
-            table_html += f"""
-                <tr>
-                    <td>{client['Username']}</td>
-                    <td>{client['Email']}</td>
-                    <td>{client['Expiry Date']}</td>
-                    <td>{client['Dashboards']}</td>
-                    <td>{client['Status']}</td>
-                    <td>{action_button}</td>
-                </tr>
-            """
-
-        table_html += """
-                </tbody>
-            </table>
-        </div>
-        """
-
-        st.markdown(table_html, unsafe_allow_html=True)
-    else:
-        st.write("No clients available.")
+        # Ensure text comes in a single line by avoiding line breaks
+        col1, col2, col3, col4, col5, col6 = st.columns([1, 2, 2, 2, 1, 1])
+        with col1:
+            st.write(client_data['username'])
+        with col2:
+            st.write(client_data['email'])
+        with col3:
+            st.write(client_data['expiry_date'])
+        with col4:
+            st.write(", ".join(client_data['permissions']))
+        with col5:
+            st.write(login_status)
+        with col6:
+            if login_status == "Logged In":
+                if st.button("Reset", key=f"reset_{client_data['username']}"):
+                    update_login_status(client_data['username'], 0)
+                    st.experimental_rerun()
+            else:
+                st.write("-")
 
 # Run the admin dashboard
 if __name__ == "__main__":
