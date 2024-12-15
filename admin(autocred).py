@@ -85,11 +85,6 @@ def admin_dashboard():
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
 
-    # Handle missing timestamps
-    for client in clients_data:
-        if 'created_at' not in client:
-            client['created_at'] = '2000-01-01 00:00:00'
-
     # Display total clients
     st.subheader(f"Total Clients: {len(clients_data)}")
 
@@ -109,25 +104,23 @@ def admin_dashboard():
                     'expiry_date': client_data['expiry_date'],
                     'permissions': client_data['permissions']
                 }
-            
-            if f"edit_{client_data['username']}" in st.session_state:
-                st.write("### Update Client Information")
-                prev_values = st.session_state[f"edit_{client_data['username']}"]
-                with st.form(key=f"edit_form_{client_data['username']}"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write("**Previous Values**")
-                        st.write(f"Email: {prev_values['email']}")
-                        st.write(f"Expiry Date: {prev_values['expiry_date']}")
-                        st.write(f"Dashboards: {', '.join(prev_values['permissions'])}")
 
-                    with col2:
-                        st.write("**Updated Values**")
-                        updated_email = st.text_input("Update Email", value=prev_values['email'])
-                        updated_expiry = st.date_input("Update Expiry Date", value=datetime.strptime(prev_values['expiry_date'], "%Y-%m-%d").date())
-                        updated_permissions = st.multiselect("Update Dashboards", 
-                                                             ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'], 
-                                                             default=prev_values['permissions'])
+            if f"edit_{client_data['username']}" in st.session_state:
+                prev_values = st.session_state[f"edit_{client_data['username']}"]
+
+                st.write("### Update Client Information")
+                with st.form(key=f"edit_form_{client_data['username']}"):
+                    st.write("**Previous Values**")
+                    st.write(f"Email: {prev_values['email']}")
+                    st.write(f"Expiry Date: {prev_values['expiry_date']}")
+                    st.write(f"Dashboards: {', '.join(prev_values['permissions'])}")
+
+                    st.write("**Updated Values**")
+                    updated_email = st.text_input("Update Email", value=prev_values['email'])
+                    updated_expiry = st.date_input("Update Expiry Date", value=datetime.strptime(prev_values['expiry_date'], "%Y-%m-%d").date())
+                    updated_permissions = st.multiselect("Update Dashboards", 
+                                                         ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'], 
+                                                         default=prev_values['permissions'])
 
                     if st.form_submit_button("Save Changes"):
                         update_client(client_data['username'], updated_email, updated_expiry.strftime('%Y-%m-%d'), updated_permissions)
