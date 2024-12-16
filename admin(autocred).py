@@ -154,9 +154,9 @@ def admin_dashboard():
                 for log in client_data['edit_logs']:
                     st.write(f"- **{log['timestamp']}**: {', '.join(log['changes'])}")
 
-            # Reset login status
-            if st.button("Reset Login Status", key=f"reset_{client_data['username']}"):
-                update_login_status(client_data['username'], 0)
+            # Remove Client Button
+            if st.button("Remove Client", key=f"remove_{client_data['username']}"):
+                remove_client(client_data['username'])
                 st.rerun()
 
             # Edit Client Details Form
@@ -170,18 +170,19 @@ def admin_dashboard():
                 st.write("### Update Client Information")
                 with st.form(key=f"edit_form_{client_data['username']}"):
                     updated_email = st.text_input("Update Email", value=client_data['email'])
-                    updated_expiry = st.date_input("Update Expiry Date", value=datetime.strptime(client_data['expiry_date'], "%Y-%m-%d").date())
+                    updated_expiry_option = st.selectbox("Update Expiry Duration:", ['1 Month', '3 Months', '6 Months'])
+                    if updated_expiry_option == '1 Month':
+                        updated_expiry = (datetime.now() + timedelta(days=30)).date()
+                    elif updated_expiry_option == '3 Months':
+                        updated_expiry = (datetime.now() + timedelta(days=90)).date()
+                    else:
+                        updated_expiry = (datetime.now() + timedelta(days=180)).date()
                     updated_permissions = st.multiselect("Update Dashboards", 
                                                          ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'], 
                                                          default=client_data['permissions'])
                     if st.form_submit_button("Save Changes"):
                         update_client(client_data['username'], updated_email, updated_expiry.strftime('%Y-%m-%d'), updated_permissions)
                         st.rerun()
-
-            # Remove Client
-            if st.button("Remove Client", key=f"remove_{client_data['username']}"):
-                remove_client(client_data['username'])
-                st.rerun()
 
 # Run the admin dashboard
 if __name__ == "__main__":
