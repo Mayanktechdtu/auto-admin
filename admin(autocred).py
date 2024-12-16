@@ -30,19 +30,45 @@ def add_client(email, expiry_date, permissions):
         'permissions': permissions,
         'email': email,
         'login_status': 0,
-        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Add timestamp
+        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  # Add timestamp
+        'edit_logs': []  # Initialize empty edit logs
     }
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client '{email}' added successfully! Expiry Date: {expiry_date}")
 
-# Function to update client details
+# Function to update client details and log edits
 def update_client(username, updated_email, updated_expiry, updated_permissions):
-    db_firestore.collection('clients').document(username).update({
-        'email': updated_email,
-        'expiry_date': updated_expiry,
-        'permissions': updated_permissions
-    })
-    st.success(f"Client '{username}' details updated successfully!")
+    # Fetch the original client data
+    client_doc = db_firestore.collection('clients').document(username).get()
+    if client_doc.exists:
+        original_data = client_doc.to_dict()
+        changes = []
+
+        # Compare fields and log changes
+        if original_data['email'] != updated_email:
+            changes.append(f"Email: {original_data['email']} -> {updated_email}")
+        if original_data['expiry_date'] != updated_expiry:
+            changes.append(f"Expiry Date: {original_data['expiry_date']} -> {updated_expiry}")
+        if set(original_data['permissions']) != set(updated_permissions):
+            changes.append(f"Permissions: {', '.join(original_data['permissions'])} -> {', '.join(updated_permissions)}")
+
+        # Prepare edit log
+        edit_log = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'changes': changes
+        }
+
+        # Update client details with edit log
+        db_firestore.collection('clients').document(username).update({
+            'email': updated_email,
+            'expiry_date': updated_expiry,
+            'permissions': updated_permissions,
+            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'edit_logs': firestore.ArrayUnion([edit_log])  # Add new log entry to edit_logs
+        })
+        st.success(f"Client '{username}' details updated successfully!")
+    else:
+        st.error("Client not found.")
 
 # Function to reset login status
 def update_login_status(username, status):
@@ -121,6 +147,12 @@ def admin_dashboard():
                 login_status = "Logged In" if client_data['login_status'] == 1 else "Logged Out"
                 status_color = "green" if login_status == "Logged In" else "red"
                 st.markdown(f"**Status:** {status_dot(status_color)} {login_status}", unsafe_allow_html=True)
+
+            # Show edit logs
+            if 'edit_logs' in client_data and client_data['edit_logs']:
+                st.write("### Edit Logs")
+                for log in client_data['edit_logs']:
+                    st.write(f"- **{log['timestamp']}**: {', '.join(log['changes'])}")
 
             # Reset login status
             if st.button("Reset Login Status", key=f"reset_{client_data['username']}"):
