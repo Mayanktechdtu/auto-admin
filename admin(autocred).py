@@ -148,15 +148,14 @@ def admin_dashboard():
                 status_color = "green" if login_status == "Logged In" else "red"
                 st.markdown(f"**Status:** {status_dot(status_color)} {login_status}", unsafe_allow_html=True)
 
-            # Show edit logs
-            if 'edit_logs' in client_data and client_data['edit_logs']:
-                st.write("### Edit Logs")
-                for log in client_data['edit_logs']:
-                    st.write(f"- **{log['timestamp']}**: {', '.join(log['changes'])}")
-
             # Remove Client Button
             if st.button("Remove Client", key=f"remove_{client_data['username']}"):
                 remove_client(client_data['username'])
+                st.rerun()
+
+            # Reset Login Status Button
+            if st.button("Reset Login Status", key=f"reset_{client_data['username']}"):
+                update_login_status(client_data['username'], 0)
                 st.rerun()
 
             # Edit Client Details Form
