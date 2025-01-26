@@ -28,8 +28,8 @@ db_firestore = firestore.client()
 # Helper Functions
 # --------------------------
 
-# Generate a random password
 def generate_random_password(length=8):
+    """Generate a random password (if needed for other admin functionalities)."""
     characters = string.ascii_letters + string.digits + "!@#$%^&*()"
     return ''.join(random.choice(characters) for i in range(length))
 
@@ -93,27 +93,9 @@ def remove_client(username):
     db_firestore.collection('clients').document(username).delete()
     st.success(f"Client '{username}' has been removed successfully.")
 
-# Function to display status dot
+# Function to display a status dot
 def status_dot(color):
     return f"<span style='height: 10px; width: 10px; background-color: {color}; border-radius: 50%; display: inline-block;'></span>"
-
-# -------------
-# NEW FUNCTION
-# -------------
-def reset_login_details(username):
-    """
-    Resets the user's password to a new random one and 
-    sets login_status to 0. Displays the new password.
-    """
-    new_password = generate_random_password()
-    db_firestore.collection('clients').document(username).update({
-        'password': new_password,
-        'login_status': 0
-    })
-    st.success(
-        f"Login details for '{username}' have been reset.\n\n"
-        f"**New Password:** {new_password}"
-    )
 
 # --------------------------
 # Admin Dashboard
@@ -127,7 +109,10 @@ def admin_dashboard():
     st.subheader("Add New Client")
     email = st.text_input("Enter Client's Email:")
     expiry_option = st.selectbox("Select Expiry Duration:", ['1 Month', '3 Months', '6 Months'])
-    dashboards = st.multiselect("Dashboards to Provide Access:", ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'])
+    dashboards = st.multiselect(
+        "Dashboards to Provide Access:", 
+        ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6']
+    )
 
     if expiry_option == '1 Month':
         expiry_date = (datetime.now() + timedelta(days=30)).date()
@@ -169,7 +154,9 @@ def admin_dashboard():
     selected_email = st.selectbox("Select Client Email to Search:", [""] + email_list)
 
     # Filter clients based on search query
-    filtered_clients = clients_data if not selected_email else [c for c in clients_data if c['email'] == selected_email]
+    filtered_clients = clients_data if not selected_email else [
+        c for c in clients_data if c['email'] == selected_email
+    ]
 
     # Display client logs
     for idx, client_data in enumerate(filtered_clients, start=1):
@@ -202,13 +189,6 @@ def admin_dashboard():
                 update_login_status(client_data['username'], 0)
                 st.rerun()
 
-            # -----------------------------
-            # NEW: Reset Login Details Button
-            # -----------------------------
-            if st.button("Reset Login Details", key=f"reset_details_{client_data['username']}"):
-                reset_login_details(client_data['username'])
-                st.rerun()
-
             # Edit Client Details
             if f"edit_{client_data['username']}" not in st.session_state:
                 st.session_state[f"edit_{client_data['username']}"] = False
@@ -220,13 +200,17 @@ def admin_dashboard():
                 st.write("### Update Client Information")
                 with st.form(key=f"edit_form_{client_data['username']}"):
                     updated_email = st.text_input("Update Email", value=client_data['email'])
-                    updated_expiry_option = st.selectbox("Update Expiry Duration:", ['1 Month', '3 Months', '6 Months'])
+                    updated_expiry_option = st.selectbox(
+                        "Update Expiry Duration:", 
+                        ['1 Month', '3 Months', '6 Months']
+                    )
                     if updated_expiry_option == '1 Month':
                         updated_expiry = (datetime.now() + timedelta(days=30)).date()
                     elif updated_expiry_option == '3 Months':
                         updated_expiry = (datetime.now() + timedelta(days=90)).date()
                     else:
                         updated_expiry = (datetime.now() + timedelta(days=180)).date()
+
                     updated_permissions = st.multiselect(
                         "Update Dashboards", 
                         ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'], 
