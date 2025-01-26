@@ -2,14 +2,18 @@ import streamlit as st
 from datetime import datetime, timedelta
 import firebase_admin
 from firebase_admin import credentials, firestore
+import random
+import string
 
-# Initialize Firebase Admin SDK using Streamlit secrets
+# --------------------------
+# Firebase Initialization
+# --------------------------
 if not firebase_admin._apps:
     firebase_cred = credentials.Certificate({
         "type": st.secrets["firebase"]["type"],
         "project_id": st.secrets["firebase"]["project_id"],
         "private_key_id": st.secrets["firebase"]["private_key_id"],
-        "private_key": st.secrets["firebase"]["private_key"].replace("\\n", "\n"),
+        "private_key": st.secrets["firebase"]["private_key_id"].replace("\\n", "\n"),
         "client_email": st.secrets["firebase"]["client_email"],
         "client_id": st.secrets["firebase"]["client_id"],
         "auth_uri": st.secrets["firebase"]["auth_uri"],
@@ -19,6 +23,15 @@ if not firebase_admin._apps:
     })
     firebase_admin.initialize_app(firebase_cred)
 db_firestore = firestore.client()
+
+# --------------------------
+# Helper Functions
+# --------------------------
+
+# Generate a random password
+def generate_random_password(length=8):
+    characters = string.ascii_letters + string.digits + "!@#$%^&*()"
+    return ''.join(random.choice(characters) for i in range(length))
 
 # Function to add a new client
 def add_client(email, expiry_date, permissions):
@@ -84,7 +97,28 @@ def remove_client(username):
 def status_dot(color):
     return f"<span style='height: 10px; width: 10px; background-color: {color}; border-radius: 50%; display: inline-block;'></span>"
 
+# -------------
+# NEW FUNCTION
+# -------------
+def reset_login_details(username):
+    """
+    Resets the user's password to a new random one and 
+    sets login_status to 0. Displays the new password.
+    """
+    new_password = generate_random_password()
+    db_firestore.collection('clients').document(username).update({
+        'password': new_password,
+        'login_status': 0
+    })
+    st.success(
+        f"Login details for '{username}' have been reset.\n\n"
+        f"**New Password:** {new_password}"
+    )
+
+# --------------------------
 # Admin Dashboard
+# --------------------------
+
 def admin_dashboard():
     st.title("Admin Dashboard")
     st.write("Manage client access, edit permissions, and expiry dates.")
@@ -121,7 +155,10 @@ def admin_dashboard():
             client['created_at'] = '2000-01-01 00:00:00'
 
     # Sort clients by created_at (descending) and username
-    clients_data.sort(key=lambda x: (datetime.strptime(x['created_at'], '%Y-%m-%d %H:%M:%S'), x['username']), reverse=True)
+    clients_data.sort(
+        key=lambda x: (datetime.strptime(x['created_at'], '%Y-%m-%d %H:%M:%S'), x['username']), 
+        reverse=True
+    )
 
     # Display total clients
     st.subheader(f"Total Clients: {len(clients_data)}")
@@ -161,11 +198,18 @@ def admin_dashboard():
                 st.rerun()
 
             # Reset Login Status Button
-            if st.button("Reset Login Status", key=f"reset_{client_data['username']}"):
+            if st.button("Reset Login Status", key=f"reset_status_{client_data['username']}"):
                 update_login_status(client_data['username'], 0)
                 st.rerun()
 
-            # Edit Client Details Form
+            # -----------------------------
+            # NEW: Reset Login Details Button
+            # -----------------------------
+            if st.button("Reset Login Details", key=f"reset_details_{client_data['username']}"):
+                reset_login_details(client_data['username'])
+                st.rerun()
+
+            # Edit Client Details
             if f"edit_{client_data['username']}" not in st.session_state:
                 st.session_state[f"edit_{client_data['username']}"] = False
 
@@ -183,11 +227,18 @@ def admin_dashboard():
                         updated_expiry = (datetime.now() + timedelta(days=90)).date()
                     else:
                         updated_expiry = (datetime.now() + timedelta(days=180)).date()
-                    updated_permissions = st.multiselect("Update Dashboards", 
-                                                         ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'], 
-                                                         default=client_data['permissions'])
+                    updated_permissions = st.multiselect(
+                        "Update Dashboards", 
+                        ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'], 
+                        default=client_data['permissions']
+                    )
                     if st.form_submit_button("Save Changes"):
-                        update_client(client_data['username'], updated_email, updated_expiry.strftime('%Y-%m-%d'), updated_permissions)
+                        update_client(
+                            client_data['username'], 
+                            updated_email, 
+                            updated_expiry.strftime('%Y-%m-%d'), 
+                            updated_permissions
+                        )
                         st.rerun()
 
 # Run the admin dashboard
