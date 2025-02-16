@@ -4,6 +4,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import random
 import string
+import pandas as pd
+import io
 
 # --------------------------
 # Firebase Initialization
@@ -24,10 +26,12 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(firebase_cred)
 db_firestore = firestore.client()
 
+# Global list for full dashboards
+ALL_DASHBOARDS = ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6']
+
 # --------------------------
 # Helper Functions
 # --------------------------
-
 def generate_random_password(length=8):
     """Generate a random password (if needed for other admin functionalities)."""
     characters = string.ascii_letters + string.digits + "!@#$%^&*()"
@@ -35,6 +39,10 @@ def generate_random_password(length=8):
 
 def add_client(email, expiry_date, permissions):
     """Create a new client document in Firestore."""
+    # If "All Dashboard" was selected, use the full list.
+    if "All Dashboard" in permissions:
+        permissions = ALL_DASHBOARDS.copy()
+        
     username = email.split('@')[0]
     client_data = {
         'username': username,
@@ -49,8 +57,31 @@ def add_client(email, expiry_date, permissions):
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client '{email}' added successfully! Expiry Date: {expiry_date}")
 
+def bulk_add_client(email, expiry_date, permissions):
+    """Create a new client document in Firestore without showing a success message (for bulk uploads)."""
+    # If "All Dashboard" was selected, use the full list.
+    if "All Dashboard" in permissions:
+        permissions = ALL_DASHBOARDS.copy()
+        
+    username = email.split('@')[0]
+    client_data = {
+        'username': username,
+        'password': '',
+        'expiry_date': expiry_date,
+        'permissions': permissions,
+        'email': email,
+        'login_status': 0,
+        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'edit_logs': []
+    }
+    db_firestore.collection('clients').document(username).set(client_data)
+
 def update_client(username, updated_email, updated_expiry, updated_permissions):
     """Update an existing client's information and log the changes."""
+    # If "All Dashboard" was selected, use the full list.
+    if "All Dashboard" in updated_permissions:
+        updated_permissions = ALL_DASHBOARDS.copy()
+        
     client_doc = db_firestore.collection('clients').document(username).get()
     if client_doc.exists:
         original_data = client_doc.to_dict()
@@ -97,27 +128,44 @@ def status_dot(color):
     return f"<span style='height: 10px; width: 10px; background-color: {color}; " \
            f"border-radius: 50%; display: inline-block;'></span>"
 
+def parse_date(date_str):
+    """Parse a date string that could be in dd/mm/yy or dd/mm/yyyy format."""
+    date_str = str(date_str).strip()
+    for fmt in ("%d/%m/%y %H:%M", "%d/%m/%Y %H:%M"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
+
 # --------------------------
 # Admin Dashboard
 # --------------------------
-
 def admin_dashboard():
     st.title("Admin Dashboard")
     st.write("Manage client access, edit permissions, and expiry dates.")
 
     # ---------------------------
-    # 1) Add a new client section
+    # 1) Add a New Client Section
     # ---------------------------
     st.subheader("Add New Client")
     email = st.text_input("Enter Client's Email:")
+    
     expiry_option = st.selectbox(
         "Select Expiry Duration:", 
         ['1 Month', '3 Months', '6 Months']
     )
+    
+    # Include the "All Dashboard" option at the top.
+    dashboards_options = ["All Dashboard"] + ALL_DASHBOARDS
     dashboards = st.multiselect(
         "Dashboards to Provide Access:", 
-        ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6']
+        dashboards_options
     )
+
+    # If "All Dashboard" is selected, set permissions to all.
+    if "All Dashboard" in dashboards:
+        dashboards = ALL_DASHBOARDS.copy()
 
     if expiry_option == '1 Month':
         expiry_date = (datetime.now() + timedelta(days=30)).date()
@@ -133,10 +181,50 @@ def admin_dashboard():
         else:
             st.error("Please provide all required details.")
 
+    # ---------------------------
+    # 2) Bulk Upload Clients via CSV
+    # ---------------------------
+    st.write("---")
+    st.subheader("Bulk Upload Clients via CSV")
+    st.write("Upload a CSV file with your subscription data. Clients with a **Status** of 'Success' will be added in sorted order (by Date) with a default 1-month expiry and access to all dashboards.")
+    uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+    
+    if uploaded_file is not None:
+        try:
+            # Read CSV using pandas
+            df = pd.read_csv(uploaded_file)
+            # Ensure required columns exist
+            if not {"Date", "Email", "Status"}.issubset(df.columns):
+                st.error("CSV file must contain at least 'Date', 'Email', and 'Status' columns.")
+            else:
+                # Drop rows with missing Email
+                df = df.dropna(subset=["Email"])
+                # Filter rows with Status == "Success" (ignoring extra spaces)
+                df = df[df["Status"].astype(str).str.strip() == "Success"]
+                # Parse the date column (handling both date formats)
+                df["ParsedDate"] = df["Date"].apply(parse_date)
+                # Drop rows where the date could not be parsed
+                df = df[df["ParsedDate"].notnull()]
+                # Sort the dataframe by date (ascending)
+                df = df.sort_values(by="ParsedDate")
+                
+                bulk_count = 0
+                for index, row in df.iterrows():
+                    client_email = row["Email"]
+                    default_expiry = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
+                    # Use full dashboard access for CSV bulk uploads.
+                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS)
+                    bulk_count += 1
+                    
+                st.success(f"Bulk upload complete, {bulk_count} clients added.")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Error processing CSV: {e}")
+
     st.write("---")
 
     # ---------------------------
-    # 2) Display/Manage Clients
+    # 3) Display/Manage Clients
     # ---------------------------
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
@@ -166,13 +254,12 @@ def admin_dashboard():
     )
 
     # ---------------------------
-    # 3) Display each client
+    # 4) Display Each Client
     # ---------------------------
     for idx, client_data in enumerate(filtered_clients, start=1):
         with st.expander(f"**{idx}. {client_data['username']}** - {client_data['email']}"):
             st.write("### Client Details")
 
-            # >>> Display Username & Password
             st.write(f"**ID (Username):** {client_data['username']}")
             st.write(f"**Password:** {client_data.get('password', '')}")
 
@@ -225,9 +312,11 @@ def admin_dashboard():
                     else:
                         updated_expiry = (datetime.now() + timedelta(days=180)).date()
 
+                    # For updating, include "All Dashboard" option as well.
+                    updated_dashboards_options = ["All Dashboard"] + ALL_DASHBOARDS
                     updated_permissions = st.multiselect(
                         "Update Dashboards", 
-                        ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6'], 
+                        updated_dashboards_options, 
                         default=client_data['permissions']
                     )
                     if st.form_submit_button("Save Changes"):
