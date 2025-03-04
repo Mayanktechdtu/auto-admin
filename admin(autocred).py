@@ -177,7 +177,7 @@ def admin_dashboard():
     if st.button("Add Client"):
         if email and dashboards:
             add_client(email, expiry_date.strftime('%Y-%m-%d'), dashboards)
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("Please provide all required details.")
 
@@ -215,17 +215,18 @@ def admin_dashboard():
                     # Use full dashboard access for CSV bulk uploads.
                     bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS)
                     bulk_count += 1
-                    
                 st.success(f"Bulk upload complete, {bulk_count} clients added.")
-                st.rerun()
+                st.experimental_rerun()
         except Exception as e:
             st.error(f"Error processing CSV: {e}")
 
     st.write("---")
 
     # ---------------------------
-    # 3) Display/Manage Clients
+    # 3) Preview Clients Database
     # ---------------------------
+    st.subheader("User Database Preview")
+    # Retrieve clients data from Firestore
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
 
@@ -233,15 +234,18 @@ def admin_dashboard():
     for client in clients_data:
         if 'created_at' not in client:
             client['created_at'] = '2000-01-01 00:00:00'
+    
+    # Create a preview table
+    preview_df = pd.DataFrame([
+        {"Username": client["username"], "Email": client["email"], "Uploaded On": client["created_at"]} 
+        for client in clients_data
+    ])
+    st.dataframe(preview_df)
 
-    # Sort by creation date (descending) and username
-    clients_data.sort(
-        key=lambda x: (datetime.strptime(x['created_at'], '%Y-%m-%d %H:%M:%S'), x['username']), 
-        reverse=True
-    )
-
+    # ---------------------------
+    # 4) Display/Manage Clients
+    # ---------------------------
     st.subheader(f"Total Clients: {len(clients_data)}")
-
     st.subheader("Search Clients by Email")
     email_list = [client['email'] for client in clients_data]
     selected_email = st.selectbox("Select Client Email to Search:", [""] + email_list)
@@ -254,13 +258,13 @@ def admin_dashboard():
     )
 
     # ---------------------------
-    # 4) Display Each Client
+    # 5) Display Each Client
     # ---------------------------
     for idx, client_data in enumerate(filtered_clients, start=1):
         with st.expander(f"**{idx}. {client_data['username']}** - {client_data['email']}"):
             st.write("### Client Details")
-
             st.write(f"**ID (Username):** {client_data['username']}")
+            st.write(f"**Uploaded On:** {client_data['created_at']}")
             st.write(f"**Password:** {client_data.get('password', '')}")
 
             col1, col2, col3 = st.columns(3)
@@ -283,12 +287,12 @@ def admin_dashboard():
             # Remove Client Button
             if st.button("Remove Client", key=f"remove_{client_data['username']}"):
                 remove_client(client_data['username'])
-                st.rerun()
+                st.experimental_rerun()
 
             # Reset Login Status Button
             if st.button("Reset Login Status", key=f"reset_status_{client_data['username']}"):
                 update_login_status(client_data['username'], 0)
-                st.rerun()
+                st.experimental_rerun()
 
             # Edit Client Details
             if f"edit_{client_data['username']}" not in st.session_state:
@@ -326,7 +330,7 @@ def admin_dashboard():
                             updated_expiry.strftime('%Y-%m-%d'), 
                             updated_permissions
                         )
-                        st.rerun()
+                        st.experimental_rerun()
 
 # Run the admin dashboard
 if __name__ == "__main__":
