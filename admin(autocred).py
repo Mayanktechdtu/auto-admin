@@ -44,7 +44,7 @@ def add_client(email, expiry_date, permissions):
         
     username = email.split('@')[0]
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    # For manual add, we set sheet_date equal to created_at (since no sheet data is available)
+    # For manual add, set sheet_date equal to created_at
     client_data = {
         'username': username,
         'password': '',
@@ -160,8 +160,7 @@ def admin_dashboard():
     # ---------------------------
     st.subheader("Add New Client")
     email = st.text_input("Enter Client's Email:")
-    
-    # (Optional: You can add a text_input here to capture Name manually if needed.)
+    # Optionally, capture name manually if needed.
     expiry_option = st.selectbox("Select Expiry Duration:", ['1 Month', '3 Months', '6 Months'])
     dashboards_options = ["All Dashboard"] + ALL_DASHBOARDS
     dashboards = st.multiselect("Dashboards to Provide Access:", dashboards_options)
@@ -205,7 +204,7 @@ def admin_dashboard():
                 df = df[df["Status"].astype(str).str.strip() == "Success"]
                 df["ParsedDate"] = df["Date"].apply(parse_date)
                 df = df[df["ParsedDate"].notnull()]
-                # Sort by the parsed date from the sheet
+                # Sort by the parsed date from the CSV
                 df = df.sort_values(by="ParsedDate")
                 
                 new_uploads = []
@@ -216,19 +215,21 @@ def admin_dashboard():
                     default_expiry = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
                     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     # Use the parsed date from the CSV as the sheet date (formatted)
-                    sheet_date = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
-                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, created_at, client_name, sheet_date)
+                    sheet_date_full = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
+                    # Format the date to show only the date part
+                    sheet_date = sheet_date_full.split(" ")[0]
+                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, created_at, client_name, sheet_date_full)
                     
                     new_uploads.append({
                         "Name": client_name,
                         "Email": client_email,
-                        "Date": sheet_date
+                        "Date Uploaded": sheet_date
                     })
                 
                 st.success(f"Bulk upload complete, {len(new_uploads)} clients added.")
                 st.write("### Newly Uploaded Clients")
                 st.dataframe(pd.DataFrame(new_uploads))
-                # Optionally, you can call st.experimental_rerun() here to refresh the full clients list.
+                # Optionally, call st.experimental_rerun() here to refresh the full clients list.
         except Exception as e:
             st.error(f"Error processing CSV: {e}")
 
@@ -261,11 +262,16 @@ def admin_dashboard():
     # 4) Display Each Client
     # ---------------------------
     for idx, client_data in enumerate(filtered_clients, start=1):
-        with st.expander(f"**{idx}. {client_data.get('name', client_data['username'])}** - {client_data['email']}"):
-            st.write("### Client Details")
+        # Get the date uploaded (date only)
+        try:
+            date_uploaded = datetime.strptime(client_data.get("sheet_date", client_data["created_at"]), '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+        except Exception:
+            date_uploaded = "N/A"
+        with st.expander(f"Client {idx} Details"):
+            # Header line: Name | Email | Date Uploaded
+            st.markdown(f"**{client_data.get('name', client_data['username'])}** | {client_data['email']} | Date Uploaded: {date_uploaded}")
+            st.write("---")
             st.write(f"**ID (Username):** {client_data['username']}")
-            st.write(f"**Name:** {client_data.get('name', 'N/A')}")
-            st.write(f"**Date:** {client_data.get('sheet_date', client_data['created_at'])}")
             st.write(f"**Password:** {client_data.get('password', '')}")
 
             col1, col2, col3 = st.columns(3)
