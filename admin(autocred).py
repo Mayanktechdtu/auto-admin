@@ -38,12 +38,13 @@ def generate_random_password(length=8):
     return ''.join(random.choice(characters) for i in range(length))
 
 def add_client(email, expiry_date, permissions):
-    """Create a new client document in Firestore."""
+    """Create a new client document in Firestore (manual add)."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
         
     username = email.split('@')[0]
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # For manual add, we set sheet_date equal to created_at (since no sheet data is available)
     client_data = {
         'username': username,
         'password': '',
@@ -52,12 +53,13 @@ def add_client(email, expiry_date, permissions):
         'email': email,
         'login_status': 0,
         'created_at': created_at,
+        'sheet_date': created_at,
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client '{email}' added successfully! Expiry Date: {expiry_date}")
 
-def bulk_add_client(email, expiry_date, permissions, created_at):
+def bulk_add_client(email, expiry_date, permissions, created_at, name, sheet_date):
     """Create a new client document in Firestore for bulk uploads."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
@@ -69,8 +71,10 @@ def bulk_add_client(email, expiry_date, permissions, created_at):
         'expiry_date': expiry_date,
         'permissions': permissions,
         'email': email,
+        'name': name,
         'login_status': 0,
         'created_at': created_at,
+        'sheet_date': sheet_date,
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
@@ -129,12 +133,20 @@ def status_dot(color):
 def parse_date(date_str):
     """Parse a date string that could be in dd/mm/yy or dd/mm/yyyy format."""
     date_str = str(date_str).strip()
-    for fmt in ("%d/%m/%y %H:%M", "%d/%m/%Y %H:%M"):
+    for fmt in ("%d/%m/%y %H:%M", "%d/%m/%Y %H:%M", "%d/%m/%y", "%d/%m/%Y"):
         try:
             return datetime.strptime(date_str, fmt)
         except ValueError:
             continue
     return None
+
+def get_sort_date(client):
+    """Return the date for sorting. Prefer 'sheet_date' if available; else 'created_at'."""
+    date_str = client.get("sheet_date", client.get("created_at", "2000-01-01 00:00:00"))
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+    except Exception:
+        return datetime(2000, 1, 1)
 
 # --------------------------
 # Admin Dashboard
@@ -144,16 +156,13 @@ def admin_dashboard():
     st.write("Manage client access, edit permissions, and expiry dates.")
 
     # ---------------------------
-    # 1) Add a New Client Section
+    # 1) Add a New Client Section (Manual Add)
     # ---------------------------
     st.subheader("Add New Client")
     email = st.text_input("Enter Client's Email:")
     
-    expiry_option = st.selectbox(
-        "Select Expiry Duration:", 
-        ['1 Month', '3 Months', '6 Months']
-    )
-    
+    # (Optional: You can add a text_input here to capture Name manually if needed.)
+    expiry_option = st.selectbox("Select Expiry Duration:", ['1 Month', '3 Months', '6 Months'])
     dashboards_options = ["All Dashboard"] + ALL_DASHBOARDS
     dashboards = st.multiselect("Dashboards to Provide Access:", dashboards_options)
     if "All Dashboard" in dashboards:
@@ -180,41 +189,46 @@ def admin_dashboard():
     st.subheader("Bulk Upload Clients via CSV")
     st.write(
         "Upload a CSV file with your subscription data. "
-        "Clients with a **Status** of 'Success' will be added in sorted order (by Date) "
-        "with a default 1-month expiry and full dashboard access."
+        "The CSV must include the following columns: **Date**, **Email**, **Status**, and **Name**. "
+        "Rows with a **Status** of 'Success' will be added with a default 1-month expiry and full dashboard access."
     )
     uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
     
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
-            if not {"Date", "Email", "Status"}.issubset(df.columns):
-                st.error("CSV file must contain at least 'Date', 'Email', and 'Status' columns.")
+            required_cols = {"Date", "Email", "Status", "Name"}
+            if not required_cols.issubset(df.columns):
+                st.error("CSV file must contain the columns: Date, Email, Status, and Name.")
             else:
                 df = df.dropna(subset=["Email"])
                 df = df[df["Status"].astype(str).str.strip() == "Success"]
                 df["ParsedDate"] = df["Date"].apply(parse_date)
                 df = df[df["ParsedDate"].notnull()]
+                # Sort by the parsed date from the sheet
                 df = df.sort_values(by="ParsedDate")
                 
                 new_uploads = []
                 for index, row in df.iterrows():
                     client_email = row["Email"]
+                    client_name = row["Name"]
+                    # Default expiry is 1 month from now
                     default_expiry = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
                     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, created_at)
+                    # Use the parsed date from the CSV as the sheet date (formatted)
+                    sheet_date = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
+                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, created_at, client_name, sheet_date)
                     
-                    username = client_email.split('@')[0]
                     new_uploads.append({
-                        "Username": username,
+                        "Name": client_name,
                         "Email": client_email,
-                        "Date Uploaded": created_at
+                        "Date": sheet_date
                     })
                 
                 st.success(f"Bulk upload complete, {len(new_uploads)} clients added.")
                 st.write("### Newly Uploaded Clients")
                 st.dataframe(pd.DataFrame(new_uploads))
-                # Optionally, you can call st.experimental_rerun() here if you want to refresh the full clients list.
+                # Optionally, you can call st.experimental_rerun() here to refresh the full clients list.
         except Exception as e:
             st.error(f"Error processing CSV: {e}")
 
@@ -223,21 +237,17 @@ def admin_dashboard():
     # ---------------------------
     # 3) Display/Manage Clients (Sorted)
     # ---------------------------
-    # Retrieve clients data from Firestore
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
     
-    # Ensure each client has a 'created_at' timestamp.
+    # Ensure each client has a 'sheet_date' (fallback to created_at)
     for client in clients_data:
-        if 'created_at' not in client:
-            client['created_at'] = '2000-01-01 00:00:00'
+        if 'sheet_date' not in client:
+            client['sheet_date'] = client.get('created_at', '2000-01-01 00:00:00')
     
-    # Sort by descending 'created_at' (latest first) and then by email (alphabetically ascending)
+    # Sort clients by descending sheet_date and then by email alphabetically
     clients_data.sort(
-        key=lambda x: (
-            -datetime.strptime(x['created_at'], '%Y-%m-%d %H:%M:%S').timestamp(),
-            x['email']
-        )
+        key=lambda x: (-get_sort_date(x).timestamp(), x['email'])
     )
     
     st.subheader(f"Total Clients: {len(clients_data)}")
@@ -245,20 +255,17 @@ def admin_dashboard():
     email_list = [client['email'] for client in clients_data]
     selected_email = st.selectbox("Select Client Email to Search:", [""] + email_list)
 
-    filtered_clients = (
-        clients_data 
-        if not selected_email 
-        else [c for c in clients_data if c['email'] == selected_email]
-    )
+    filtered_clients = clients_data if not selected_email else [c for c in clients_data if c['email'] == selected_email]
 
     # ---------------------------
     # 4) Display Each Client
     # ---------------------------
     for idx, client_data in enumerate(filtered_clients, start=1):
-        with st.expander(f"**{idx}. {client_data['username']}** - {client_data['email']}"):
+        with st.expander(f"**{idx}. {client_data.get('name', client_data['username'])}** - {client_data['email']}"):
             st.write("### Client Details")
             st.write(f"**ID (Username):** {client_data['username']}")
-            st.write(f"**Date Uploaded:** {client_data['created_at']}")
+            st.write(f"**Name:** {client_data.get('name', 'N/A')}")
+            st.write(f"**Date:** {client_data.get('sheet_date', client_data['created_at'])}")
             st.write(f"**Password:** {client_data.get('password', '')}")
 
             col1, col2, col3 = st.columns(3)
