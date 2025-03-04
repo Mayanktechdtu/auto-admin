@@ -38,13 +38,13 @@ def generate_random_password(length=8):
     return ''.join(random.choice(characters) for i in range(length))
 
 def add_client(email, expiry_date, permissions):
-    """Create a new client document in Firestore (manual add)."""
+    """Create a new client document in Firestore (manual add). 
+       For manual adds, the purchase date defaults to the upload time."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
         
     username = email.split('@')[0]
-    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    # For manual add, purchase_date defaults to the created_at time.
+    uploaded_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     client_data = {
         'username': username,
         'password': '',
@@ -52,15 +52,16 @@ def add_client(email, expiry_date, permissions):
         'permissions': permissions,
         'email': email,
         'login_status': 0,
-        'created_at': created_at,         # Uploaded Date (when admin updates DB)
-        'purchase_date': created_at,        # Purchase Date (defaults to update time)
+        'created_at': uploaded_at,        # Uploaded Date
+        'purchase_date': uploaded_at,       # For manual add, default purchase date equals upload time
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client '{email}' added successfully! Expiry Date: {expiry_date}")
 
-def bulk_add_client(email, expiry_date, permissions, created_at, name, purchase_date):
-    """Create a new client document in Firestore for bulk uploads."""
+def bulk_add_client(email, expiry_date, permissions, uploaded_at, name, purchase_date):
+    """Create a new client document in Firestore for bulk uploads.
+       'purchase_date' comes from the CSV 'Date' column, while 'uploaded_at' is the current time."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
         
@@ -73,7 +74,7 @@ def bulk_add_client(email, expiry_date, permissions, created_at, name, purchase_
         'email': email,
         'name': name,
         'login_status': 0,
-        'created_at': created_at,         # Uploaded Date
+        'created_at': uploaded_at,        # Uploaded Date
         'purchase_date': purchase_date,     # Purchase Date from CSV
         'edit_logs': []
     }
@@ -158,7 +159,7 @@ def admin_dashboard():
     # ---------------------------
     st.subheader("Add New Client")
     email = st.text_input("Enter Client's Email:")
-    # Optionally, you can add a text_input to capture Name manually.
+    # Optionally, capture Name manually if needed.
     expiry_option = st.selectbox("Select Expiry Duration:", ['1 Month', '3 Months', '6 Months'])
     dashboards_options = ["All Dashboard"] + ALL_DASHBOARDS
     dashboards = st.multiselect("Dashboards to Provide Access:", dashboards_options)
@@ -211,14 +212,14 @@ def admin_dashboard():
                     client_name = row["Name"]
                     # Default expiry is 1 month from now
                     default_expiry = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
-                    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    uploaded_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     # Extract purchase date from the CSV (full timestamp)
                     purchase_date_full = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
-                    # For display purposes, show only the date portion
+                    # For display purposes, extract only the date portion
                     purchase_date_disp = purchase_date_full.split(" ")[0]
-                    uploaded_date_disp = created_at.split(" ")[0]
+                    uploaded_date_disp = uploaded_at.split(" ")[0]
                     
-                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, created_at, client_name, purchase_date_full)
+                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, uploaded_at, client_name, purchase_date_full)
                     
                     new_uploads.append({
                         "Name": client_name,
@@ -230,7 +231,7 @@ def admin_dashboard():
                 st.success(f"Bulk upload complete, {len(new_uploads)} clients added.")
                 st.write("### Newly Uploaded Clients")
                 st.dataframe(pd.DataFrame(new_uploads))
-                # Optionally, you can call st.experimental_rerun() here to refresh the full clients list.
+                # Optionally, call st.experimental_rerun() here to refresh the full clients list.
         except Exception as e:
             st.error(f"Error processing CSV: {e}")
 
@@ -242,7 +243,7 @@ def admin_dashboard():
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
     
-    # Ensure each client has a 'created_at' date (for uploaded date) and a 'purchase_date'
+    # Ensure each client has a 'created_at' (Uploaded Date) and a 'purchase_date'
     for client in clients_data:
         if 'created_at' not in client:
             client['created_at'] = '2000-01-01 00:00:00'
