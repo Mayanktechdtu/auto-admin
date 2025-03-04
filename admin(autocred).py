@@ -39,12 +39,12 @@ def generate_random_password(length=8):
 
 def add_client(email, expiry_date, permissions):
     """Create a new client document in Firestore (manual add). 
-       For manual adds, the purchase date defaults to the upload time."""
+       For manual adds, the purchase date defaults to the access granted date."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
         
     username = email.split('@')[0]
-    uploaded_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    access_granted = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     client_data = {
         'username': username,
         'password': '',
@@ -52,16 +52,16 @@ def add_client(email, expiry_date, permissions):
         'permissions': permissions,
         'email': email,
         'login_status': 0,
-        'created_at': uploaded_at,        # Uploaded Date
-        'purchase_date': uploaded_at,       # For manual add, default purchase date equals upload time
+        'created_at': access_granted,        # Access Granted Date
+        'purchase_date': access_granted,       # For manual add, default purchase date equals access granted date
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client '{email}' added successfully! Expiry Date: {expiry_date}")
 
-def bulk_add_client(email, expiry_date, permissions, uploaded_at, name, purchase_date):
+def bulk_add_client(email, expiry_date, permissions, access_granted, name, purchase_date):
     """Create a new client document in Firestore for bulk uploads.
-       'purchase_date' comes from the CSV 'Date' column, while 'uploaded_at' is the current time."""
+       'purchase_date' comes from the CSV 'Date' column, while 'access_granted' is the current time."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
         
@@ -74,8 +74,8 @@ def bulk_add_client(email, expiry_date, permissions, uploaded_at, name, purchase
         'email': email,
         'name': name,
         'login_status': 0,
-        'created_at': uploaded_at,        # Uploaded Date
-        'purchase_date': purchase_date,     # Purchase Date from CSV
+        'created_at': access_granted,        # Access Granted Date
+        'purchase_date': purchase_date,        # Purchase Date from CSV
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
@@ -140,7 +140,7 @@ def parse_date(date_str):
     return None
 
 def get_sort_date(client):
-    """Return the uploaded date (created_at) for sorting."""
+    """Return the access granted date (created_at) for sorting."""
     date_str = client.get("created_at", "2000-01-01 00:00:00")
     try:
         return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
@@ -212,20 +212,20 @@ def admin_dashboard():
                     client_name = row["Name"]
                     # Default expiry is 1 month from now
                     default_expiry = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
-                    uploaded_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    access_granted = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     # Extract purchase date from the CSV (full timestamp)
                     purchase_date_full = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
                     # For display purposes, extract only the date portion
                     purchase_date_disp = purchase_date_full.split(" ")[0]
-                    uploaded_date_disp = uploaded_at.split(" ")[0]
+                    access_granted_disp = access_granted.split(" ")[0]
                     
-                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, uploaded_at, client_name, purchase_date_full)
+                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, access_granted, client_name, purchase_date_full)
                     
                     new_uploads.append({
                         "Name": client_name,
                         "Email": client_email,
                         "Purchase Date": purchase_date_disp,
-                        "Uploaded Date": uploaded_date_disp
+                        "Access Granted Date": access_granted_disp
                     })
                 
                 st.success(f"Bulk upload complete, {len(new_uploads)} clients added.")
@@ -243,14 +243,14 @@ def admin_dashboard():
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
     
-    # Ensure each client has a 'created_at' (Uploaded Date) and a 'purchase_date'
+    # Ensure each client has a 'created_at' (Access Granted Date) and a 'purchase_date'
     for client in clients_data:
         if 'created_at' not in client:
             client['created_at'] = '2000-01-01 00:00:00'
         if 'purchase_date' not in client:
             client['purchase_date'] = client['created_at']
     
-    # Sort clients by descending uploaded date (created_at) and then by email alphabetically
+    # Sort clients by descending access granted date (created_at) and then by email alphabetically
     clients_data.sort(
         key=lambda x: (-get_sort_date(x).timestamp(), x['email'])
     )
@@ -271,17 +271,21 @@ def admin_dashboard():
         except Exception:
             purchase_date_disp = "N/A"
         try:
-            uploaded_date_disp = datetime.strptime(client_data.get("created_at"), '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+            access_granted_disp = datetime.strptime(client_data.get("created_at"), '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
         except Exception:
-            uploaded_date_disp = "N/A"
+            access_granted_disp = "N/A"
         
         with st.expander(f"Client {idx} Details"):
-            # Header line: Name | Email | Purchase Date | Uploaded Date
+            # Header line: Name | Email | Purchase Date | Access Granted Date
             st.markdown(
                 f"**{client_data.get('name', client_data['username'])}** | {client_data['email']} | "
-                f"Purchase Date: {purchase_date_disp} | Uploaded Date: {uploaded_date_disp}"
+                f"Purchase Date: {purchase_date_disp} | Access Granted Date: {access_granted_disp}"
             )
             st.write("---")
+            # Display Login Credentials in a box
+            st.markdown("**Login Credentials**")
+            st.info(f"Username: {client_data['username']}\nPassword: {client_data.get('password', '')}")
+            
             st.write(f"**ID (Username):** {client_data['username']}")
             st.write(f"**Password:** {client_data.get('password', '')}")
 
