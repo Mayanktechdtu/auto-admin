@@ -42,7 +42,6 @@ def add_client(email, expiry_date, permissions):
        For manual adds, the purchase date defaults to the access granted date."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
-        
     username = email.split('@')[0]
     access_granted = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     client_data = {
@@ -64,7 +63,6 @@ def bulk_add_client(email, expiry_date, permissions, access_granted, name, purch
        'purchase_date' comes from the CSV 'Date' column, while 'access_granted' is the current time."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
-        
     username = email.split('@')[0]
     client_data = {
         'username': username,
@@ -84,26 +82,20 @@ def update_client(username, updated_email, updated_expiry, updated_permissions):
     """Update an existing client's information and log the changes."""
     if "All Dashboard" in updated_permissions:
         updated_permissions = ALL_DASHBOARDS.copy()
-        
     client_doc = db_firestore.collection('clients').document(username).get()
     if client_doc.exists:
         original_data = client_doc.to_dict()
         changes = []
-
         if original_data['email'] != updated_email:
             changes.append(f"Email: {original_data['email']} -> {updated_email}")
         if original_data['expiry_date'] != updated_expiry:
             changes.append(f"Expiry Date: {original_data['expiry_date']} -> {updated_expiry}")
         if set(original_data['permissions']) != set(updated_permissions):
-            changes.append(
-                f"Permissions: {', '.join(original_data['permissions'])} -> {', '.join(updated_permissions)}"
-            )
-
+            changes.append(f"Permissions: {', '.join(original_data['permissions'])} -> {', '.join(updated_permissions)}")
         edit_log = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'changes': changes
         }
-
         db_firestore.collection('clients').document(username).update({
             'email': updated_email,
             'expiry_date': updated_expiry,
@@ -159,20 +151,17 @@ def admin_dashboard():
     # ---------------------------
     st.subheader("Add New Client")
     email = st.text_input("Enter Client's Email:")
-    # Optionally, capture Name manually if needed.
     expiry_option = st.selectbox("Select Expiry Duration:", ['1 Month', '3 Months', '6 Months'])
     dashboards_options = ["All Dashboard"] + ALL_DASHBOARDS
     dashboards = st.multiselect("Dashboards to Provide Access:", dashboards_options)
     if "All Dashboard" in dashboards:
         dashboards = ALL_DASHBOARDS.copy()
-
     if expiry_option == '1 Month':
         expiry_date = (datetime.now() + timedelta(days=30)).date()
     elif expiry_option == '3 Months':
         expiry_date = (datetime.now() + timedelta(days=90)).date()
     else:
         expiry_date = (datetime.now() + timedelta(days=180)).date()
-
     if st.button("Add Client"):
         if email and dashboards:
             add_client(email, expiry_date.strftime('%Y-%m-%d'), dashboards)
@@ -191,7 +180,6 @@ def admin_dashboard():
         "Rows with a **Status** of 'Success' will be added with a default 1-month expiry and full dashboard access."
     )
     uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
-    
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
@@ -203,35 +191,27 @@ def admin_dashboard():
                 df = df[df["Status"].astype(str).str.strip() == "Success"]
                 df["ParsedDate"] = df["Date"].apply(parse_date)
                 df = df[df["ParsedDate"].notnull()]
-                # Sort by the parsed purchase date from the CSV
-                df = df.sort_values(by="ParsedDate")
-                
+                df = df.sort_values(by="ParsedDate")  # Sort by purchase date from CSV
                 new_uploads = []
                 for index, row in df.iterrows():
                     client_email = row["Email"]
                     client_name = row["Name"]
-                    # Default expiry is 1 month from now
                     default_expiry = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
                     access_granted = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    # Extract purchase date from the CSV (full timestamp)
                     purchase_date_full = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
-                    # For display, format dates with abbreviated month names (e.g. 04 Mar 2025)
+                    # Format dates with abbreviated month names (e.g., "04 Mar 2025")
                     purchase_date_disp = datetime.strptime(purchase_date_full, '%Y-%m-%d %H:%M:%S').strftime('%d %b %Y')
                     access_granted_disp = datetime.strptime(access_granted, '%Y-%m-%d %H:%M:%S').strftime('%d %b %Y')
-                    
                     bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, access_granted, client_name, purchase_date_full)
-                    
                     new_uploads.append({
                         "Name": client_name,
                         "Email": client_email,
                         "Purchase Date": purchase_date_disp,
                         "Access Granted Date": access_granted_disp
                     })
-                
                 st.success(f"Bulk upload complete, {len(new_uploads)} clients added.")
                 st.write("### Newly Uploaded Clients")
                 st.dataframe(pd.DataFrame(new_uploads))
-                # Optionally, call st.experimental_rerun() here to refresh the full clients list.
         except Exception as e:
             st.error(f"Error processing CSV: {e}")
 
@@ -242,25 +222,22 @@ def admin_dashboard():
     # ---------------------------
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
-    
-    # Ensure each client has a 'created_at' (Access Granted Date) and a 'purchase_date'
     for client in clients_data:
         if 'created_at' not in client:
             client['created_at'] = '2000-01-01 00:00:00'
         if 'purchase_date' not in client:
             client['purchase_date'] = client['created_at']
-    
-    # Sort clients by descending access granted date (created_at) and then by email alphabetically
-    clients_data.sort(
-        key=lambda x: (-get_sort_date(x).timestamp(), x['email'])
-    )
+    clients_data.sort(key=lambda x: (-get_sort_date(x).timestamp(), x['email']))
     
     st.subheader(f"Total Clients: {len(clients_data)}")
-    st.subheader("Search Clients by Email")
-    email_list = [client['email'] for client in clients_data]
-    selected_email = st.selectbox("Select Client Email to Search:", [""] + email_list)
-
-    filtered_clients = clients_data if not selected_email else [c for c in clients_data if c['email'] == selected_email]
+    
+    # Create dropdown options using client's Name (or username if Name not available) and Email
+    dropdown_options = [""] + [f"{client.get('name', client['username'])} ({client['email']})" for client in clients_data]
+    selected_client_str = st.selectbox("Select Client:", dropdown_options)
+    if selected_client_str:
+        filtered_clients = [c for c in clients_data if f"{c.get('name', c['username'])} ({c['email']})" == selected_client_str]
+    else:
+        filtered_clients = clients_data
 
     # ---------------------------
     # 4) Display Each Client
@@ -275,14 +252,14 @@ def admin_dashboard():
         except Exception:
             access_granted_disp = "N/A"
         
-        with st.expander(f"Client {idx} Details"):
-            # Header line: Name | Email | Purchase Date | Access Granted Date
-            st.markdown(
-                f"**{client_data.get('name', client_data['username'])}** | {client_data['email']} | "
-                f"Purchase Date: {purchase_date_disp} | Access Granted Date: {access_granted_disp}"
-            )
+        with st.expander(f"{client_data.get('name', client_data['username'])} Details"):
+            # Display Name & Email in one line
+            st.markdown(f"**Name & Email:** {client_data.get('name', client_data['username'])} | {client_data['email']}")
+            # Display Purchase Date and Access Granted Date in separate highlight boxes
+            st.info(f"Purchase Date: {purchase_date_disp}")
+            st.success(f"Access Granted Date: {access_granted_disp}")
             st.write("---")
-            # Display Login Credentials in a box
+            # Display Login Credentials in a box (do not repeat ID/Password below)
             st.markdown("**Login Credentials**")
             st.info(f"Username: {client_data['username']}\nPassword: {client_data.get('password', '')}")
             
@@ -327,7 +304,6 @@ def admin_dashboard():
                         updated_expiry = (datetime.now() + timedelta(days=90)).date()
                     else:
                         updated_expiry = (datetime.now() + timedelta(days=180)).date()
-
                     updated_dashboards_options = ["All Dashboard"] + ALL_DASHBOARDS
                     updated_permissions = st.multiselect("Update Dashboards", updated_dashboards_options, default=client_data['permissions'])
                     if st.form_submit_button("Save Changes"):
