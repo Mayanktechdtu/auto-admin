@@ -53,7 +53,7 @@ def add_client(email, expiry_date, permissions):
         'email': email,
         'login_status': 0,
         'created_at': access_granted,        # Access Granted Date
-        'purchase_date': access_granted,       # For manual add, default purchase date equals access granted date
+        'purchase_date': access_granted,       # For manual add, purchase date equals access granted date
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
@@ -215,9 +215,9 @@ def admin_dashboard():
                     access_granted = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     # Extract purchase date from the CSV (full timestamp)
                     purchase_date_full = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
-                    # For display purposes, extract only the date portion
-                    purchase_date_disp = purchase_date_full.split(" ")[0]
-                    access_granted_disp = access_granted.split(" ")[0]
+                    # For display, format dates with abbreviated month names (e.g. 04 Mar 2025)
+                    purchase_date_disp = datetime.strptime(purchase_date_full, '%Y-%m-%d %H:%M:%S').strftime('%d %b %Y')
+                    access_granted_disp = datetime.strptime(access_granted, '%Y-%m-%d %H:%M:%S').strftime('%d %b %Y')
                     
                     bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, access_granted, client_name, purchase_date_full)
                     
@@ -267,11 +267,11 @@ def admin_dashboard():
     # ---------------------------
     for idx, client_data in enumerate(filtered_clients, start=1):
         try:
-            purchase_date_disp = datetime.strptime(client_data.get("purchase_date", client_data["created_at"]), '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+            purchase_date_disp = datetime.strptime(client_data.get("purchase_date", client_data["created_at"]), '%Y-%m-%d %H:%M:%S').strftime('%d %b %Y')
         except Exception:
             purchase_date_disp = "N/A"
         try:
-            access_granted_disp = datetime.strptime(client_data.get("created_at"), '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+            access_granted_disp = datetime.strptime(client_data.get("created_at"), '%Y-%m-%d %H:%M:%S').strftime('%d %b %Y')
         except Exception:
             access_granted_disp = "N/A"
         
@@ -286,9 +286,6 @@ def admin_dashboard():
             st.markdown("**Login Credentials**")
             st.info(f"Username: {client_data['username']}\nPassword: {client_data.get('password', '')}")
             
-            st.write(f"**ID (Username):** {client_data['username']}")
-            st.write(f"**Password:** {client_data.get('password', '')}")
-
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.write(f"**Expiry Date:** {client_data['expiry_date']}")
