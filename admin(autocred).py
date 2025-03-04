@@ -44,7 +44,7 @@ def add_client(email, expiry_date, permissions):
         
     username = email.split('@')[0]
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    # For manual add, set sheet_date equal to created_at
+    # For manual add, purchase_date defaults to the created_at time.
     client_data = {
         'username': username,
         'password': '',
@@ -52,14 +52,14 @@ def add_client(email, expiry_date, permissions):
         'permissions': permissions,
         'email': email,
         'login_status': 0,
-        'created_at': created_at,
-        'sheet_date': created_at,
+        'created_at': created_at,         # Uploaded Date (when admin updates DB)
+        'purchase_date': created_at,        # Purchase Date (defaults to update time)
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client '{email}' added successfully! Expiry Date: {expiry_date}")
 
-def bulk_add_client(email, expiry_date, permissions, created_at, name, sheet_date):
+def bulk_add_client(email, expiry_date, permissions, created_at, name, purchase_date):
     """Create a new client document in Firestore for bulk uploads."""
     if "All Dashboard" in permissions:
         permissions = ALL_DASHBOARDS.copy()
@@ -73,8 +73,8 @@ def bulk_add_client(email, expiry_date, permissions, created_at, name, sheet_dat
         'email': email,
         'name': name,
         'login_status': 0,
-        'created_at': created_at,
-        'sheet_date': sheet_date,
+        'created_at': created_at,         # Uploaded Date
+        'purchase_date': purchase_date,     # Purchase Date from CSV
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
@@ -95,8 +95,7 @@ def update_client(username, updated_email, updated_expiry, updated_permissions):
             changes.append(f"Expiry Date: {original_data['expiry_date']} -> {updated_expiry}")
         if set(original_data['permissions']) != set(updated_permissions):
             changes.append(
-                f"Permissions: {', '.join(original_data['permissions'])} "
-                f"-> {', '.join(updated_permissions)}"
+                f"Permissions: {', '.join(original_data['permissions'])} -> {', '.join(updated_permissions)}"
             )
 
         edit_log = {
@@ -127,11 +126,10 @@ def remove_client(username):
 
 def status_dot(color):
     """Return an HTML string for a colored status dot."""
-    return f"<span style='height: 10px; width: 10px; background-color: {color}; " \
-           f"border-radius: 50%; display: inline-block;'></span>"
+    return f"<span style='height: 10px; width: 10px; background-color: {color}; border-radius: 50%; display: inline-block;'></span>"
 
 def parse_date(date_str):
-    """Parse a date string that could be in dd/mm/yy or dd/mm/yyyy format."""
+    """Parse a date string that could be in dd/mm/yy or dd/mm/yyyy formats."""
     date_str = str(date_str).strip()
     for fmt in ("%d/%m/%y %H:%M", "%d/%m/%Y %H:%M", "%d/%m/%y", "%d/%m/%Y"):
         try:
@@ -141,8 +139,8 @@ def parse_date(date_str):
     return None
 
 def get_sort_date(client):
-    """Return the date for sorting. Prefer 'sheet_date' if available; else 'created_at'."""
-    date_str = client.get("sheet_date", client.get("created_at", "2000-01-01 00:00:00"))
+    """Return the uploaded date (created_at) for sorting."""
+    date_str = client.get("created_at", "2000-01-01 00:00:00")
     try:
         return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
     except Exception:
@@ -160,7 +158,7 @@ def admin_dashboard():
     # ---------------------------
     st.subheader("Add New Client")
     email = st.text_input("Enter Client's Email:")
-    # Optionally, capture name manually if needed.
+    # Optionally, you can add a text_input to capture Name manually.
     expiry_option = st.selectbox("Select Expiry Duration:", ['1 Month', '3 Months', '6 Months'])
     dashboards_options = ["All Dashboard"] + ALL_DASHBOARDS
     dashboards = st.multiselect("Dashboards to Provide Access:", dashboards_options)
@@ -204,7 +202,7 @@ def admin_dashboard():
                 df = df[df["Status"].astype(str).str.strip() == "Success"]
                 df["ParsedDate"] = df["Date"].apply(parse_date)
                 df = df[df["ParsedDate"].notnull()]
-                # Sort by the parsed date from the CSV
+                # Sort by the parsed purchase date from the CSV
                 df = df.sort_values(by="ParsedDate")
                 
                 new_uploads = []
@@ -214,22 +212,25 @@ def admin_dashboard():
                     # Default expiry is 1 month from now
                     default_expiry = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
                     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    # Use the parsed date from the CSV as the sheet date (formatted)
-                    sheet_date_full = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
-                    # Format the date to show only the date part
-                    sheet_date = sheet_date_full.split(" ")[0]
-                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, created_at, client_name, sheet_date_full)
+                    # Extract purchase date from the CSV (full timestamp)
+                    purchase_date_full = row["ParsedDate"].strftime('%Y-%m-%d %H:%M:%S')
+                    # For display purposes, show only the date portion
+                    purchase_date_disp = purchase_date_full.split(" ")[0]
+                    uploaded_date_disp = created_at.split(" ")[0]
+                    
+                    bulk_add_client(client_email, default_expiry, ALL_DASHBOARDS, created_at, client_name, purchase_date_full)
                     
                     new_uploads.append({
                         "Name": client_name,
                         "Email": client_email,
-                        "Date Uploaded": sheet_date
+                        "Purchase Date": purchase_date_disp,
+                        "Uploaded Date": uploaded_date_disp
                     })
                 
                 st.success(f"Bulk upload complete, {len(new_uploads)} clients added.")
                 st.write("### Newly Uploaded Clients")
                 st.dataframe(pd.DataFrame(new_uploads))
-                # Optionally, call st.experimental_rerun() here to refresh the full clients list.
+                # Optionally, you can call st.experimental_rerun() here to refresh the full clients list.
         except Exception as e:
             st.error(f"Error processing CSV: {e}")
 
@@ -241,12 +242,14 @@ def admin_dashboard():
     clients_ref = db_firestore.collection('clients').stream()
     clients_data = [client.to_dict() for client in clients_ref]
     
-    # Ensure each client has a 'sheet_date' (fallback to created_at)
+    # Ensure each client has a 'created_at' date (for uploaded date) and a 'purchase_date'
     for client in clients_data:
-        if 'sheet_date' not in client:
-            client['sheet_date'] = client.get('created_at', '2000-01-01 00:00:00')
+        if 'created_at' not in client:
+            client['created_at'] = '2000-01-01 00:00:00'
+        if 'purchase_date' not in client:
+            client['purchase_date'] = client['created_at']
     
-    # Sort clients by descending sheet_date and then by email alphabetically
+    # Sort clients by descending uploaded date (created_at) and then by email alphabetically
     clients_data.sort(
         key=lambda x: (-get_sort_date(x).timestamp(), x['email'])
     )
@@ -262,14 +265,21 @@ def admin_dashboard():
     # 4) Display Each Client
     # ---------------------------
     for idx, client_data in enumerate(filtered_clients, start=1):
-        # Get the date uploaded (date only)
         try:
-            date_uploaded = datetime.strptime(client_data.get("sheet_date", client_data["created_at"]), '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+            purchase_date_disp = datetime.strptime(client_data.get("purchase_date", client_data["created_at"]), '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
         except Exception:
-            date_uploaded = "N/A"
+            purchase_date_disp = "N/A"
+        try:
+            uploaded_date_disp = datetime.strptime(client_data.get("created_at"), '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+        except Exception:
+            uploaded_date_disp = "N/A"
+        
         with st.expander(f"Client {idx} Details"):
-            # Header line: Name | Email | Date Uploaded
-            st.markdown(f"**{client_data.get('name', client_data['username'])}** | {client_data['email']} | Date Uploaded: {date_uploaded}")
+            # Header line: Name | Email | Purchase Date | Uploaded Date
+            st.markdown(
+                f"**{client_data.get('name', client_data['username'])}** | {client_data['email']} | "
+                f"Purchase Date: {purchase_date_disp} | Uploaded Date: {uploaded_date_disp}"
+            )
             st.write("---")
             st.write(f"**ID (Username):** {client_data['username']}")
             st.write(f"**Password:** {client_data.get('password', '')}")
