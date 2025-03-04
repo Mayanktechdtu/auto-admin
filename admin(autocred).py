@@ -191,7 +191,8 @@ def admin_dashboard():
                 df = df[df["Status"].astype(str).str.strip() == "Success"]
                 df["ParsedDate"] = df["Date"].apply(parse_date)
                 df = df[df["ParsedDate"].notnull()]
-                df = df.sort_values(by="ParsedDate")  # Sort by purchase date from CSV
+                # Sort by the parsed purchase date from the CSV
+                df = df.sort_values(by="ParsedDate")
                 new_uploads = []
                 for index, row in df.iterrows():
                     client_email = row["Email"]
@@ -231,7 +232,7 @@ def admin_dashboard():
     
     st.subheader(f"Total Clients: {len(clients_data)}")
     
-    # Create dropdown options using client's Name (or username if Name not available) and Email
+    # Create dropdown options using client's Name and Email
     dropdown_options = [""] + [f"{client.get('name', client['username'])} ({client['email']})" for client in clients_data]
     selected_client_str = st.selectbox("Select Client:", dropdown_options)
     if selected_client_str:
@@ -255,11 +256,15 @@ def admin_dashboard():
         with st.expander(f"{client_data.get('name', client_data['username'])} Details"):
             # Display Name & Email in one line
             st.markdown(f"**Name & Email:** {client_data.get('name', client_data['username'])} | {client_data['email']}")
-            # Display Purchase Date and Access Granted Date in separate highlight boxes
-            st.info(f"Purchase Date: {purchase_date_disp}")
-            st.success(f"Access Granted Date: {access_granted_disp}")
+            # Display dates in a single compact inline box
+            dates_html = f"""
+            <div style="border:1px solid #ccc; padding:5px; font-size:14px; display:inline-block;">
+                Purchase Date: {purchase_date_disp} | Access Granted Date: {access_granted_disp}
+            </div>
+            """
+            st.markdown(dates_html, unsafe_allow_html=True)
             st.write("---")
-            # Display Login Credentials in a box (do not repeat ID/Password below)
+            # Display Login Credentials in a box
             st.markdown("**Login Credentials**")
             st.info(f"Username: {client_data['username']}\nPassword: {client_data.get('password', '')}")
             
