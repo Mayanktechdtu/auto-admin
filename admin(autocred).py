@@ -57,6 +57,10 @@ def add_client(email, expiry_date, permissions):
     }
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client '{email}' added successfully! Expiry Date: {expiry_date}")
+    try:
+        st.experimental_rerun()
+    except Exception:
+        pass
 
 def bulk_add_client(email, expiry_date, permissions, access_granted, name, purchase_date):
     """Create a new client document in Firestore for bulk uploads.
@@ -111,11 +115,19 @@ def update_login_status(username, status):
     """Reset or update the login status (0 = logged out, 1 = logged in)."""
     db_firestore.collection('clients').document(username).update({'login_status': status})
     st.success(f"Login status for '{username}' has been reset.")
+    try:
+        st.experimental_rerun()
+    except Exception:
+        pass
 
 def remove_client(username):
     """Delete the client's document from Firestore."""
     db_firestore.collection('clients').document(username).delete()
     st.success(f"Client '{username}' has been removed successfully.")
+    try:
+        st.experimental_rerun()
+    except Exception:
+        pass
 
 def status_dot(color):
     """Return an HTML string for a colored status dot."""
@@ -165,7 +177,6 @@ def admin_dashboard():
     if st.button("Add Client"):
         if email and dashboards:
             add_client(email, expiry_date.strftime('%Y-%m-%d'), dashboards)
-            st.experimental_rerun()
         else:
             st.error("Please provide all required details.")
 
@@ -256,9 +267,9 @@ def admin_dashboard():
         with st.expander(f"{client_data.get('name', client_data['username'])} Details"):
             # Display Name & Email in one line
             st.markdown(f"**Name & Email:** {client_data.get('name', client_data['username'])} | {client_data['email']}")
-            # Display dates in a single compact inline box
+            # Display dates in one compact inline box
             dates_html = f"""
-            <div style="border:1px solid #ccc; padding:5px; font-size:14px; display:inline-block;">
+            <div style="border:1px solid #ccc; padding:4px; font-size:14px; display:inline-block;">
                 Purchase Date: {purchase_date_disp} | Access Granted Date: {access_granted_disp}
             </div>
             """
@@ -286,18 +297,12 @@ def admin_dashboard():
 
             if st.button("Remove Client", key=f"remove_{client_data['username']}"):
                 remove_client(client_data['username'])
-                st.experimental_rerun()
-
             if st.button("Reset Login Status", key=f"reset_status_{client_data['username']}"):
                 update_login_status(client_data['username'], 0)
-                st.experimental_rerun()
-
             if f"edit_{client_data['username']}" not in st.session_state:
                 st.session_state[f"edit_{client_data['username']}"] = False
-
             if st.button("Edit Client", key=f"edit_btn_{client_data['username']}"):
                 st.session_state[f"edit_{client_data['username']}"] = not st.session_state[f"edit_{client_data['username']}"]
-
             if st.session_state[f"edit_{client_data['username']}"]:
                 st.write("### Update Client Information")
                 with st.form(key=f"edit_form_{client_data['username']}"):
@@ -318,7 +323,10 @@ def admin_dashboard():
                             updated_expiry.strftime('%Y-%m-%d'), 
                             updated_permissions
                         )
-                        st.experimental_rerun()
+                        try:
+                            st.experimental_rerun()
+                        except Exception:
+                            pass
 
 # Run the admin dashboard
 if __name__ == "__main__":
