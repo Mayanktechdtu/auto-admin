@@ -6,6 +6,9 @@ import random
 import string
 import pandas as pd
 import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # --------------------------
 # Firebase Initialization
