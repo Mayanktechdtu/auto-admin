@@ -33,6 +33,38 @@ db_firestore = firestore.client()
 ALL_DASHBOARDS = ['dashboard1', 'dashboard2', 'dashboard3', 'dashboard4', 'dashboard5', 'dashboard6']
 
 # --------------------------
+# Email Notification Helper Function
+# --------------------------
+def send_email_notification(recipient_email, client_name):
+    """Send an email notification to the new client."""
+    # Email credentials and SMTP server configuration from st.secrets for security.
+    smtp_server = st.secrets["smtp"]["server"]      # e.g., "smtp.gmail.com"
+    smtp_port = st.secrets["smtp"]["port"]            # e.g., 587
+    sender_email = "whalestreetofficial@gmail.com"
+    sender_password = st.secrets["smtp"]["password"]  # App password or actual password
+
+    subject = "Access Granted - WhaleStreet"
+    body = f"Hello {client_name},\n\nYour access has been granted by WhaleStreet. You can now log in using your credentials.\n\nBest regards,\nWhaleStreet Team"
+
+    # Create the MIME message
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = recipient_email
+    message["Subject"] = subject
+    message.attach(MIMEText(body, "plain"))
+    
+    try:
+        # Connect to the SMTP server and send email
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient_email, message.as_string())
+        server.quit()
+        st.info(f"Email sent to {recipient_email}.")
+    except Exception as e:
+        st.error(f"Failed to send email to {recipient_email}: {e}")
+
+# --------------------------
 # Helper Functions
 # --------------------------
 def generate_random_password(length=8):
@@ -49,7 +81,7 @@ def add_client(email, expiry_date, permissions):
     access_granted = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     client_data = {
         'username': username,
-        'password': '',
+        'password': '',  # Optionally, generate and store a random password if needed
         'expiry_date': expiry_date,
         'permissions': permissions,
         'email': email,
@@ -60,6 +92,10 @@ def add_client(email, expiry_date, permissions):
     }
     db_firestore.collection('clients').document(username).set(client_data)
     st.success(f"Client '{email}' added successfully! Expiry Date: {expiry_date}")
+    
+    # Send email notification to the client
+    send_email_notification(email, username)
+    
     try:
         st.experimental_rerun()
     except Exception:
@@ -84,6 +120,9 @@ def bulk_add_client(email, expiry_date, permissions, access_granted, name, purch
         'edit_logs': []
     }
     db_firestore.collection('clients').document(username).set(client_data)
+    
+    # Send email notification to the client after bulk upload
+    send_email_notification(email, name if name else username)
 
 def update_client(username, updated_email, updated_expiry, updated_permissions):
     """Update an existing client's information and log the changes."""
