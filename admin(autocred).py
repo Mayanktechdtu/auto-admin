@@ -6,8 +6,7 @@ import random
 import string
 import pandas as pd
 import io
-import smtplib, ssl
-from email.mime.text import MIMEText
+
 # --------------------------
 # Firebase Initialization
 # --------------------------
@@ -151,35 +150,7 @@ def get_sort_date(client):
         return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
     except Exception:
         return datetime(2000, 1, 1)
-    
-pl ="3bWZu8fxnc5a"
 
-def send_mail(email, subject, message):
-    """Send an email to the client with the subject and message."""
-    port = 587  # Port for TLS
-    password = "3bWZu8fxnc5a"  # Use your app password if 2FA is enabled
-    sender_email = "admin@whalestreet.in"
-    
-    context = ssl.create_default_context()
-    
-    try:
-        # Using SMTP with TLS
-        with smtplib.SMTP("smtp.zoho.in", port) as server:
-            server.starttls(context=context)  # Start TLS encryption
-            server.login(sender_email, password)
-            
-            msg = MIMEText(message, "html")  # Send the email as HTML
-            msg['Subject'] = subject
-            msg['From'] = sender_email
-            msg['To'] = email
-            
-            # Send the email
-            server.sendmail(sender_email, email, msg.as_string())
-        print("Email sent successfully!")
-    except smtplib.SMTPAuthenticationError:
-        print("Authentication failed. Please check your credentials and try again.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
 # --------------------------
 # Admin Dashboard
 # --------------------------
@@ -253,93 +224,6 @@ def admin_dashboard():
                 st.success(f"Bulk upload complete, {len(new_uploads)} clients added.")
                 st.write("### Newly Uploaded Clients")
                 st.dataframe(pd.DataFrame(new_uploads))
-                for index, row in df.iterrows():
-            
-                    msg = f"""
-                        <html>
-                            <head>
-                                <style>
-                                    body {{
-                                        font-family: Arial, sans-serif;
-                                        background-color: #f4f4f9;
-                                        color: #333;
-                                        margin: 0;
-                                        padding: 20px;
-                                    }}
-                                    .container {{
-                                        max-width: 600px;
-                                        margin: 0 auto;
-                                        background-color: #ffffff;
-                                        padding: 20px;
-                                        border-radius: 8px;
-                                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                                    }}
-                                    h2 {{
-                                        color: #007BFF;
-                                        font-size: 24px;
-                                    }}
-                                    p {{
-                                        font-size: 16px;
-                                        line-height: 1.5;
-                                    }}
-                                    ul {{
-                                        font-size: 16px;
-                                        line-height: 1.6;
-                                        list-style-type: none;
-                                        padding: 0;
-                                    }}
-                                    li {{
-                                        margin-bottom: 8px;
-                                    }}
-                                    strong {{
-                                        color: #333;
-                                    }}
-                                    .footer {{
-                                        margin-top: 30px;
-                                        text-align: center;
-                                        font-size: 14px;
-                                        color: #777;
-                                    }}
-                                    .button {{
-                                        display: inline-block;
-                                        padding: 12px 20px;
-                                        margin-top: 20px;
-                                        background-color: #007BFF;
-                                        color: #fff;
-                                        text-decoration: none;
-                                        font-weight: bold;
-                                        border-radius: 5px;
-                                    }}
-                                    .button:hover {{
-                                        background-color: #0056b3;
-                                    }}
-                                </style>
-                            </head>
-                            <body>
-                                <div class="container">
-                                    <h2>Welcome to Whale Street!</h2>
-                                    <p>Dear {row["Name"]},</p>
-                                    <p>We're excited to inform you that your subscription has been successfully activated. You now have full access to all our dashboards.</p>
-                                    <p>Please use the following credentials to log in:</p>
-                                    <ul>
-                                        <li><strong>Username:</strong> {row["Email"].split('@')[0]}</li>
-                                        <li><strong>Password:</strong> The password for your account will be generated once you register with this email</li>
-                                        <li><strong>Expiry Date:</strong> {(datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')}</li>
-                                    </ul>
-                                    <p>If you have any questions or need further assistance, please don't hesitate to contact us!</p>
-                                    
-                                    <a href="#" class="button">Visit Your Dashboard</a>
-
-                                    <div class="footer">
-                                        <p>Best regards,<br/>The Whale Street Team</p>
-                                    </div>
-                                </div>
-                            </body>
-                        </html>
-                        """
-                    client_email = row["Email"]
-                    send_mail(client_email, "Welcome To WhaleStreet", msg)
-                    print("Mail Sended")
         except Exception as e:
             st.error(f"Error processing CSV: {e}")
 
